@@ -1,139 +1,136 @@
-# Auto-installer and Environment Setup for Windows
+# PowerShell Automated Setup for Windows
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
-$Host.UI.RawUI.WindowTitle = "NSFW Image Hunter - Автоматическая установка"
+
+try {
+    $Host.UI.RawUI.WindowTitle = 'NSFW Image Hunter - Setup'
+} catch {}
 
 Clear-Host
-Write-Host "=================================================================" -ForegroundColor Magenta
-Write-Host "   NSFW Image Hunter and Downloader - Автоматическая установка" -ForegroundColor Magenta
-Write-Host "=================================================================" -ForegroundColor Magenta
-Write-Host ""
+Write-Host '=================================================================' -ForegroundColor Magenta
+Write-Host '   NSFW Image Hunter and Downloader - Setup' -ForegroundColor Magenta
+Write-Host '=================================================================' -ForegroundColor Magenta
+Write-Host ''
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $scriptDir
 
-# Function to test if Python executable works
 function Get-WorkingPython {
-    $pythonCandidates = @(
-        "python",
-        "py",
-        "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe",
-        "C:\Python312\python.exe",
-        "C:\Python311\python.exe",
-        "C:\Python310\python.exe",
-        "$scriptDir\python_runtime\python.exe"
+    $candidates = @(
+        'python',
+        'py',
+        (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312\python.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python311\python.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python310\python.exe'),
+        'C:\Python312\python.exe',
+        'C:\Python311\python.exe',
+        'C:\Python310\python.exe'
     )
-
-    foreach ($cmd in $pythonCandidates) {
+    foreach ($c in $candidates) {
         try {
-            $ver = & $cmd --version 2>&1
-            if ($LASTEXITCODE -eq 0 -and $ver -match "Python 3") {
-                return $cmd
+            $out = & $c --version 2>&1
+            if ($LASTEXITCODE -eq 0 -and $out -match 'Python 3') {
+                return $c
             }
         } catch {}
     }
     return $null
 }
 
-# 1. Check Python
 $pyCmd = Get-WorkingPython
 
 if (-not $pyCmd) {
-    Write-Host "[1/5] Python не обнаружен на вашем ПК." -ForegroundColor Yellow
-    Write-Host "      Загружаем официальный Python 3.11 для Windows..." -ForegroundColor Cyan
+    Write-Host '[1/5] Python is not installed on this PC.' -ForegroundColor Yellow
+    Write-Host '      Downloading official Python 3.11 for Windows...' -ForegroundColor Cyan
     
-    $pythonUrl = "https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe"
-    $installerPath = "$env:TEMP\python-3.11.9-amd64.exe"
+    $installerPath = Join-Path $env:TEMP 'python-3.11.9-amd64.exe'
+    $pythonUrl = 'https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe'
     
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
-        $webclient = New-Object System.Net.WebClient
-        $webclient.DownloadFile($pythonUrl, $installerPath)
-        Write-Host "  -> Загрузка завершена." -ForegroundColor Green
+        $client = New-Object System.Net.WebClient
+        $client.DownloadFile($pythonUrl, $installerPath)
+        Write-Host '  -> Download completed.' -ForegroundColor Green
         
-        Write-Host "[2/5] Автоматическая тихая установка Python..." -ForegroundColor Cyan
-        $proc = Start-Process -FilePath $installerPath -ArgumentList "/quiet InstallAllUsers=0 PrependPath=1 Include_test=0 SimpleInstall=1" -Wait -PassThru
+        Write-Host '[2/5] Installing Python 3.11 silently in background...' -ForegroundColor Cyan
+        $argsList = '/quiet InstallAllUsers=0 PrependPath=1 Include_test=0 SimpleInstall=1'
+        Start-Process -FilePath $installerPath -ArgumentList $argsList -Wait
         
         Start-Sleep -Seconds 2
         Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
         
-        # Refresh environment variables
-        $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-        $localPy = "$env:LOCALAPPDATA\Programs\Python\Python311"
-        if (Test-Path "$localPy\python.exe") {
-            $env:Path = "$localPy;$localPy\Scripts;" + $env:Path
-        }
-
+        $localPy = Join-Path $env:LOCALAPPDATA 'Programs\Python\Python311'
+        $localPyScripts = Join-Path $localPy 'Scripts'
+        
+        $env:Path = "$localPy;$localPyScripts;" + [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User')
+        
         $pyCmd = Get-WorkingPython
-        if ($pyCmd) {
-            Write-Host "  -> Python успешно установлен в систему!" -ForegroundColor Green
-        } else {
-            $pyCmd = "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe"
+        if (-not $pyCmd) {
+            $candidatePy = Join-Path $localPy 'python.exe'
+            if (Test-Path $candidatePy) {
+                $pyCmd = $candidatePy
+            }
         }
+        Write-Host '  -> Python installed successfully.' -ForegroundColor Green
     } catch {
-        Write-Host "  [!] Ошибка при автоматической загрузке: $_" -ForegroundColor Red
-        Write-Host "  Пожалуйста, установите Python с сайта https://www.python.org/downloads/ (отметив галочку 'Add Python to PATH')" -ForegroundColor Yellow
+        Write-Host "  [!] Error downloading Python: $_" -ForegroundColor Red
+        Write-Host '  Please install Python from https://www.python.org/downloads/' -ForegroundColor Yellow
         Pause
         exit 1
     }
 } else {
-    Write-Host "[✓] Найден Python ($pyCmd)" -ForegroundColor Green
+    Write-Host "[+] Python found: $pyCmd" -ForegroundColor Green
 }
 
-# 2. Install Dependencies
-Write-Host ""
-Write-Host "[3/5] Установка необходимых библиотек (PyQt6, FastAPI, Pillow, PyInstaller)..." -ForegroundColor Cyan
+Write-Host ''
+Write-Host '[3/5] Installing required packages (PyQt6, FastAPI, Pillow, PyInstaller)...' -ForegroundColor Cyan
 try {
     & $pyCmd -m pip install --upgrade pip --quiet --disable-pip-version-check
     & $pyCmd -m pip install -r requirements.txt --quiet --disable-pip-version-check
     & $pyCmd -m pip install pyinstaller --quiet --disable-pip-version-check
-    Write-Host "  -> Библиотеки успешно установлены." -ForegroundColor Green
+    Write-Host '  -> Packages installed successfully.' -ForegroundColor Green
 } catch {
-    Write-Host "  [!] Предупреждение при установке pip: $_" -ForegroundColor Yellow
+    Write-Host "  [!] Note: $_" -ForegroundColor Yellow
 }
 
-# 3. Build EXE
-Write-Host ""
-Write-Host "[4/5] Сборка исполняемого файла .EXE..." -ForegroundColor Cyan
+Write-Host ''
+Write-Host '[4/5] Building standalone EXE application...' -ForegroundColor Cyan
 try {
     & $pyCmd build_exe.py
 } catch {
-    Write-Host "  [!] Ошибка вызова build_exe.py: $_" -ForegroundColor Yellow
+    Write-Host "  [!] Build note: $_" -ForegroundColor Yellow
 }
 
-$exePath = "$scriptDir\dist\NSFW_Image_Hunter\NSFW_Image_Hunter.exe"
+$exeDir = Join-Path $scriptDir 'dist\NSFW_Image_Hunter'
+$exePath = Join-Path $exeDir 'NSFW_Image_Hunter.exe'
 
-# 4. Create Desktop Shortcut
-Write-Host ""
-Write-Host "[5/5] Создание ярлыка на Рабочем столе..." -ForegroundColor Cyan
+Write-Host ''
+Write-Host '[5/5] Creating Desktop Shortcut...' -ForegroundColor Cyan
 try {
-    $WshShell = New-Object -comObject WScript.Shell
-    $DesktopPath = [System.Environment]::GetFolderPath("Desktop")
-    $Shortcut = $WshShell.CreateShortcut("$DesktopPath\NSFW Image Hunter.lnk")
+    $WshShell = New-Object -ComObject WScript.Shell
+    $DesktopPath = [System.Environment]::GetFolderPath('Desktop')
+    $Shortcut = $WshShell.CreateShortcut((Join-Path $DesktopPath 'NSFW Image Hunter.lnk'))
     
     if (Test-Path $exePath) {
         $Shortcut.TargetPath = $exePath
-        $Shortcut.WorkingDirectory = "$scriptDir\dist\NSFW_Image_Hunter"
+        $Shortcut.WorkingDirectory = $exeDir
     } else {
-        $Shortcut.TargetPath = "$scriptDir\Setup_NSFW_Image_Hunter.bat"
-        $Shortcut.WorkingDirectory = "$scriptDir"
+        $Shortcut.TargetPath = (Join-Path $scriptDir 'Start_App_Windows.bat')
+        $Shortcut.WorkingDirectory = $scriptDir
     }
-    
-    $Shortcut.Description = "NSFW Image Hunter and Downloader"
+    $Shortcut.Description = 'NSFW Image Hunter and Downloader'
     $Shortcut.Save()
-    Write-Host "  -> [✓] Ярлык создан на Рабочем столе!" -ForegroundColor Green
+    Write-Host '  -> [OK] Desktop Shortcut created on your Desktop!' -ForegroundColor Green
 } catch {
-    Write-Host "  [!] Не удалось создать ярлык: $_" -ForegroundColor Yellow
+    Write-Host "  [!] Could not create shortcut: $_" -ForegroundColor Yellow
 }
 
-Write-Host ""
-Write-Host "=================================================================" -ForegroundColor Green
-Write-Host "   УСТАНОВКА УСПЕШНО ЗАВЕРШЕНА!" -ForegroundColor Green
-Write-Host "=================================================================" -ForegroundColor Green
-Write-Host ""
-Write-Host "Запуск программы..." -ForegroundColor Cyan
+Write-Host ''
+Write-Host '=================================================================' -ForegroundColor Green
+Write-Host '   SUCCESS! Setup completed.' -ForegroundColor Green
+Write-Host '=================================================================' -ForegroundColor Green
+Write-Host ''
+Write-Host 'Starting application...' -ForegroundColor Cyan
 
 if (Test-Path $exePath) {
     Start-Process -FilePath $exePath
