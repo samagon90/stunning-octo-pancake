@@ -173,6 +173,32 @@ async def download_as_zip(req: DownloadRequest):
         headers={"Content-Disposition": "attachment; filename=nsfw_images_collection.zip"}
     )
 
+def get_referer_for_url(url: str) -> str:
+    if not url:
+        return "https://google.com/"
+    if "rule34.xxx" in url:
+        return "https://rule34.xxx/"
+    elif "gelbooru.com" in url:
+        return "https://gelbooru.com/"
+    elif "danbooru.donmai.us" in url:
+        return "https://danbooru.donmai.us/"
+    elif "yande.re" in url:
+        return "https://yande.re/"
+    elif "konachan.com" in url:
+        return "https://konachan.com/"
+    elif "realbooru.com" in url:
+        return "https://realbooru.com/"
+    elif "coomer.su" in url:
+        return "https://coomer.su/"
+    elif "erome.com" in url:
+        return "https://www.erome.com/"
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        return f"{parsed.scheme}://{parsed.netloc}/"
+    except Exception:
+        return "https://google.com/"
+
 @app.get("/api/proxy-image")
 async def proxy_image(url: str):
     """Image proxy to bypass CORS and anti-hotlinking with graceful fallback."""
@@ -180,13 +206,14 @@ async def proxy_image(url: str):
         raise HTTPException(status_code=400, detail="Missing url")
     
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Referer": "https://rule34.xxx/"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+        "Referer": get_referer_for_url(url),
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
     }
 
     try:
         async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                 if resp.status == 200:
                     content_type = resp.headers.get("Content-Type", "image/jpeg")
                     data = await resp.read()
@@ -194,8 +221,7 @@ async def proxy_image(url: str):
     except Exception:
         pass
     
-    # Fallback to generated image
-    fallback_data = generate_fallback_placeholder("NSFW Art Preview", 400, 560)
+    fallback_data = generate_fallback_placeholder("Image Not Available", 400, 560)
     return Response(content=fallback_data, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=3600"})
 
 @app.get("/api/settings")

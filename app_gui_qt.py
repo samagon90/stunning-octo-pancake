@@ -230,6 +230,31 @@ QFrame#CardFrameSelected {
 }
 """
 
+def get_referer_for_url(url: str) -> str:
+    if not url:
+        return "https://google.com/"
+    if "rule34.xxx" in url:
+        return "https://rule34.xxx/"
+    elif "gelbooru.com" in url:
+        return "https://gelbooru.com/"
+    elif "danbooru.donmai.us" in url:
+        return "https://danbooru.donmai.us/"
+    elif "yande.re" in url:
+        return "https://yande.re/"
+    elif "konachan.com" in url:
+        return "https://konachan.com/"
+    elif "realbooru.com" in url:
+        return "https://realbooru.com/"
+    elif "coomer.su" in url:
+        return "https://coomer.su/"
+    elif "erome.com" in url:
+        return "https://www.erome.com/"
+    try:
+        parsed = urllib.parse.urlparse(url)
+        return f"{parsed.scheme}://{parsed.netloc}/"
+    except Exception:
+        return "https://google.com/"
+
 class ImageLoaderSignals(QRunnable):
     def __init__(self, post: Dict[str, Any], callback):
         super().__init__()
@@ -243,9 +268,13 @@ class ImageLoaderSignals(QRunnable):
         try:
             req = urllib.request.Request(
                 url,
-                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) NSFWImageSearcher/1.0"}
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+                    "Referer": get_referer_for_url(url),
+                    "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+                }
             )
-            with urllib.request.urlopen(req, timeout=10) as response:
+            with urllib.request.urlopen(req, timeout=12) as response:
                 data = response.read()
                 image = QImage.fromData(data)
                 if not image.isNull():
@@ -518,7 +547,10 @@ class PreviewDialog(QDialog):
             try:
                 req = urllib.request.Request(
                     url,
-                    headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) NSFWImageSearcher/1.0"}
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+                        "Referer": get_referer_for_url(url)
+                    }
                 )
                 with urllib.request.urlopen(req, timeout=30) as response:
                     with open(save_path, "wb") as f:

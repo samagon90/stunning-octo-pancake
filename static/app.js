@@ -428,7 +428,7 @@ function renderGallery() {
             alt="Thumbnail" 
             loading="lazy" 
             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&q=80';"
+            onerror="this.onerror=null; this.style.opacity='0.4';"
           />
 
           <!-- Quick Zoom Overlay -->

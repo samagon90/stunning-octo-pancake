@@ -10,6 +10,32 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+def get_referer_for_url(url: str) -> str:
+    if not url:
+        return "https://google.com/"
+    if "rule34.xxx" in url:
+        return "https://rule34.xxx/"
+    elif "gelbooru.com" in url:
+        return "https://gelbooru.com/"
+    elif "danbooru.donmai.us" in url:
+        return "https://danbooru.donmai.us/"
+    elif "yande.re" in url:
+        return "https://yande.re/"
+    elif "konachan.com" in url:
+        return "https://konachan.com/"
+    elif "realbooru.com" in url:
+        return "https://realbooru.com/"
+    elif "coomer.su" in url:
+        return "https://coomer.su/"
+    elif "erome.com" in url:
+        return "https://www.erome.com/"
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        return f"{parsed.scheme}://{parsed.netloc}/"
+    except Exception:
+        return "https://google.com/"
+
 def sanitize_filename(name: str, max_length: int = 120) -> str:
     """Sanitize string to be valid Windows filename."""
     # Replace illegal characters: \ / : * ? " < > |
@@ -138,7 +164,11 @@ class DownloadManager:
                     return
 
                 try:
-                    async with session.get(file_url, timeout=aiohttp.ClientTimeout(total=30)) as response:
+                    custom_headers = {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+                        "Referer": get_referer_for_url(file_url)
+                    }
+                    async with session.get(file_url, headers=custom_headers, timeout=aiohttp.ClientTimeout(total=30)) as response:
                         if response.status == 200:
                             content = await response.read()
                             with open(filepath, "wb") as f:
