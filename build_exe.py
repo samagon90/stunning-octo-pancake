@@ -81,6 +81,8 @@ def build_executable():
         "--hidden-import=primp",
         "--hidden-import=httpx",
         "--hidden-import=core.translit",
+        "--hidden-import=core.providers.web_engines",
+        "--hidden-import=core.providers.universal_search",
         "--hidden-import=core.providers.web_ddgs",
         "--hidden-import=core.providers.yandex",
         "--hidden-import=core.providers.bing",
