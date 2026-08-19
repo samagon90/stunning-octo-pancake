@@ -80,6 +80,7 @@ def build_executable():
         "--hidden-import=duckduckgo_search",
         "--hidden-import=primp",
         "--hidden-import=httpx",
+        "--hidden-import=core.auto_downloader",
         "--hidden-import=core.translit",
         "--hidden-import=core.providers.direct_search",
         "--hidden-import=core.providers.adult_meta",

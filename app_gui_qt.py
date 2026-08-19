@@ -296,6 +296,30 @@ class UrlGrabWorker(QThread):
         except Exception as e:
             self.error.emit(str(e))
 
+class AutoModelDownloadWorker(QThread):
+    progress = pyqtSignal(dict)
+    finished = pyqtSignal(dict)
+
+    def __init__(self, target_dir: str):
+        super().__init__()
+        self.target_dir = target_dir
+
+    def run(self):
+        try:
+            from core.auto_downloader import AutoModelDownloader
+            downloader = AutoModelDownloader(target_dir=self.target_dir, max_bytes=1024 * 1024 * 1024)
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            def on_prog(stats):
+                self.progress.emit(stats)
+
+            res = loop.run_until_complete(downloader.run_auto_download(progress_callback=on_prog))
+            loop.close()
+            self.finished.emit(res)
+        except Exception as e:
+            self.finished.emit({"status": "error", "message": str(e)})
+
 class DownloadWorker(QThread):
     progress = pyqtSignal(dict)
     finished = pyqtSignal(dict)
@@ -672,9 +696,12 @@ class MainWindow(QMainWindow):
         self.btn_select_highres.clicked.connect(self.select_highres)
         tb_layout.addWidget(self.btn_select_highres)
 
-        self.selected_count_lbl = QLabel("Выбрано: 0 картинок")
-        self.selected_count_lbl.setStyleSheet("color: #ec4899; font-weight: bold; font-size: 13px; margin-left: 10px;")
-        tb_layout.addWidget(self.selected_count_lbl)
+        # Auto 1-Click Button for Milena Lisitsyna
+        self.btn_auto_milena = QPushButton("👑 СКАЧАТЬ ВСЕ ФОТО МИЛЕНЫ ЛИСИЦЫНОЙ (ДО 1 ГБ)")
+        self.btn_auto_milena.setObjectName("PrimaryBtn")
+        self.btn_auto_milena.setFixedHeight(34)
+        self.btn_auto_milena.clicked.connect(self.start_auto_milena_download)
+        tb_layout.addWidget(self.btn_auto_milena)
 
         tb_layout.addStretch()
 
@@ -905,6 +932,61 @@ class MainWindow(QMainWindow):
             self.thread_pool.start(ImageLoaderSignals(post, self._on_thumbnail_loaded))
 
         self._update_selection_counter()
+
+    def start_auto_milena_download(self):
+        dest_dir = self.folder_input.text().strip() or "./Milena_Lisitsyna_Photos"
+        dest_dir = str(Path(dest_dir).resolve())
+
+        reply = QMessageBox.question(
+            self,
+            "Авто-скачивание Милены Лисицыной",
+            f"Программа автоматически найдёт и скачает все фотосессии и альбомы Милены Лисицыной во всех базах.\n\nПапка: {dest_dir}\nЛимит памяти: строго до 1.0 ГБ (1024 МБ)\n\nНачать скачивание?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        self.btn_auto_milena.setEnabled(False)
+        self.progress_bar.setValue(0)
+        self.progress_status_lbl.setText("Поиск фотосессий в сети...")
+
+        self.auto_worker = AutoModelDownloadWorker(target_dir=dest_dir)
+        self.auto_worker.progress.connect(self._on_auto_progress)
+        self.auto_worker.finished.connect(self._on_auto_finished)
+        self.auto_worker.start()
+
+    def _on_auto_progress(self, data: dict):
+        status = data.get("status")
+        if status == "searching":
+            self.progress_status_lbl.setText("Поиск фотосессий во всех базах...")
+        elif status == "downloading":
+            count = data.get("count", 0)
+            size_mb = data.get("size_mb", 0)
+            percent = int(data.get("percent", 0))
+            speed = data.get("speed_kbps", 0)
+            cur_file = data.get("current_file", "")
+            
+            self.progress_bar.setValue(percent)
+            self.progress_status_lbl.setText(f"Скачано: {count} фото | {size_mb} / 1024 MB ({percent}%) | {speed} KB/s")
+
+    def _on_auto_finished(self, res: dict):
+        self.btn_auto_milena.setEnabled(True)
+        count = res.get("downloaded_count", 0)
+        size_mb = res.get("total_size_mb", 0)
+        folder = res.get("folder", "")
+
+        msg = f"Авто-загрузка завершена!\n\nУспешно скачано: {count} фотографий\nОбщий размер: {size_mb} MB (лимит 1 GB соблюдён)\nПапка: {folder}"
+        QMessageBox.information(self, "Готово!", msg)
+        self.progress_status_lbl.setText(f"Завершено. Сохранено {count} фото ({size_mb} MB).")
+
+        try:
+            if os.name == "nt":
+                os.startfile(folder)
+            else:
+                import subprocess
+                subprocess.run(["xdg-open", folder], check=False)
+        except Exception:
+            pass
 
     def _on_thumbnail_loaded(self, post_id: str, qimage: QImage):
         if post_id in self.card_widgets:
