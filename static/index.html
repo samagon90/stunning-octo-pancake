@@ -260,19 +260,14 @@
       <!-- Cards rendered by JS -->
     </div>
 
-    <!-- Pagination Controls -->
-    <div id="paginationBar" class="hidden mt-10 pt-6 border-t border-slate-800 flex items-center justify-between">
-      <button id="prevPageBtn" class="btn-secondary text-xs flex items-center gap-1">
-        <i data-lucide="chevron-left" class="w-4 h-4"></i> Предыдущая страница
-      </button>
-
-      <div class="flex items-center gap-2">
-        <span class="text-xs text-slate-400 font-medium">Страница</span>
-        <span id="currentPageNum" class="px-3 py-1 bg-brand-500/10 border border-brand-500/30 text-brand-400 rounded-lg font-bold text-xs">1</span>
+    <!-- Infinite Scroll Sentinel & Load More Action -->
+    <div id="infiniteScrollContainer" class="hidden mt-8 pb-12 flex flex-col items-center justify-center gap-3">
+      <div id="loadingMoreSpinner" class="hidden flex items-center gap-2 text-brand-400 text-xs font-semibold">
+        <div class="w-4 h-4 rounded-full border-2 border-brand-500 border-t-transparent animate-spin"></div>
+        <span>Подгрузка новых картинок...</span>
       </div>
-
-      <button id="nextPageBtn" class="btn-secondary text-xs flex items-center gap-1">
-        Следующая страница <i data-lucide="chevron-right" class="w-4 h-4"></i>
+      <button id="loadMoreBtn" class="btn-secondary text-xs px-6 py-2.5 flex items-center gap-2 hover:border-brand-500 hover:text-white">
+        <i data-lucide="plus-circle" class="w-4 h-4 text-brand-400"></i> Загрузить ещё фото
       </button>
     </div>
 

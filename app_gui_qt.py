@@ -6,6 +6,7 @@ import json
 import webbrowser
 import urllib.request
 import urllib.parse
+import ssl
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -13,15 +14,15 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLineEdit, QPushButton, QComboBox, QLabel, QScrollArea, QGridLayout,
     QCheckBox, QFileDialog, QProgressBar, QDialog, QMessageBox, QFrame,
-    QSplitter, QSpinBox, QSizePolicy, QCompleter, QTabWidget
+    QSizePolicy, QCompleter
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QRunnable, QThreadPool, QStringListModel
-from PyQt6.QtGui import QPixmap, QImage, QIcon, QFont, QColor, QPalette, QCursor
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QRunnable, QThreadPool
+from PyQt6.QtGui import QPixmap, QImage, QCursor
 
 from core.models import Post, SearchRequest
 from core.providers.manager import ProviderManager
 from core.downloader import DownloadManager
-from core.tag_suggest import POPULAR_TAGS, suggest_tags
+from core.tag_suggest import POPULAR_TAGS
 from core.settings import load_settings, save_settings
 from core.scraper_engine import extract_images_from_url
 
@@ -146,21 +147,6 @@ QPushButton#GrabBtn:hover {
     background-color: #7c3aed;
 }
 
-QPushButton#TagChip {
-    background-color: #1e2233;
-    border: 1px solid #334155;
-    border-radius: 12px;
-    padding: 3px 10px;
-    color: #94a3b8;
-    font-size: 11px;
-}
-
-QPushButton#TagChip:hover {
-    background-color: #2e3650;
-    color: #f472b6;
-    border-color: #ec4899;
-}
-
 QScrollArea {
     background-color: #0f111a;
     border: none;
@@ -214,6 +200,10 @@ QFrame#CardFrameSelected {
 }
 """
 
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+
 def get_referer_for_url(url: str) -> str:
     if not url:
         return "https://google.com/"
@@ -238,12 +228,6 @@ def get_referer_for_url(url: str) -> str:
         return f"{parsed.scheme}://{parsed.netloc}/"
     except Exception:
         return "https://google.com/"
-
-import ssl
-
-ssl_context = ssl.create_default_context()
-ssl_context.check_hostname = False
-ssl_context.verify_mode = ssl.CERT_NONE
 
 class ImageLoaderSignals(QRunnable):
     def __init__(self, post: Dict[str, Any], callback):
@@ -483,9 +467,6 @@ class PreviewDialog(QDialog):
         res_lbl = QLabel(f"Разрешение: {post.get('width')} x {post.get('height')}")
         info_panel.addWidget(res_lbl)
 
-        rating_lbl = QLabel(f"Рейтинг: {post.get('rating').upper()}")
-        info_panel.addWidget(rating_lbl)
-
         # Tags area
         tags_title = QLabel("Теги:")
         tags_title.setStyleSheet("font-weight: bold; margin-top: 8px;")
@@ -555,7 +536,7 @@ class PreviewDialog(QDialog):
                         "Referer": get_referer_for_url(url)
                     }
                 )
-                with urllib.request.urlopen(req, timeout=30) as response:
+                with urllib.request.urlopen(req, context=ssl_context, timeout=30) as response:
                     with open(save_path, "wb") as f:
                         f.write(response.read())
                 QMessageBox.information(self, "Успех", "Изображение успешно сохранено!")
@@ -573,12 +554,13 @@ class MainWindow(QMainWindow):
         self.provider_manager = ProviderManager()
         self.downloader = DownloadManager()
         self.thread_pool = QThreadPool()
-        self.thread_pool.setMaxThreadCount(8)
+        self.thread_pool.setMaxThreadCount(10)
 
         self.current_posts: List[Dict[str, Any]] = []
         self.selected_posts: Dict[str, Dict[str, Any]] = {}
         self.card_widgets: Dict[str, ImageCardWidget] = {}
         self.current_page = 1
+        self.is_loading = False
         self.settings = load_settings()
 
         self._setup_ui()
@@ -620,18 +602,18 @@ class MainWindow(QMainWindow):
         self.search_input = QLineEdit()
         self.search_input.setText("Милена Лисицына")
         self.search_input.setPlaceholderText("Введите имя модели или теги (например: Милена Лисицына, solo bikini)...")
-        self.search_input.returnPressed.connect(lambda: self.start_search(reset_page=True))
+        self.search_input.returnPressed.connect(lambda: self.start_search(reset=True))
         header_layout.addWidget(self.search_input, 2)
 
         # Search Button
         self.search_btn = QPushButton("🔍 Найти")
         self.search_btn.setObjectName("PrimaryBtn")
-        self.search_btn.clicked.connect(lambda: self.start_search(reset_page=True))
+        self.search_btn.clicked.connect(lambda: self.start_search(reset=True))
         header_layout.addWidget(self.search_btn)
 
         main_layout.addWidget(header)
 
-        # 2. URL Grabber / Browser Mode Frame
+        # 2. URL Grabber Frame
         grab_frame = QFrame()
         grab_frame.setObjectName("GrabberFrame")
         gf_layout = QHBoxLayout(grab_frame)
@@ -718,9 +700,10 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(toolbar)
 
-        # 4. Main Gallery Scroll Area
+        # 4. Main Gallery Scroll Area with Infinite Scroll
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.verticalScrollBar().valueChanged.connect(self._on_scroll_changed)
         
         self.gallery_widget = QWidget()
         self.gallery_grid = QGridLayout(self.gallery_widget)
@@ -731,34 +714,23 @@ class MainWindow(QMainWindow):
         self.scroll_area.setWidget(self.gallery_widget)
         main_layout.addWidget(self.scroll_area, 1)
 
-        # 5. Footer Frame
+        # 5. Footer Frame (Status & Progress)
         footer = QFrame()
         footer.setObjectName("FooterFrame")
         footer_layout = QVBoxLayout(footer)
         footer_layout.setContentsMargins(12, 8, 12, 8)
         footer_layout.setSpacing(8)
 
-        # Pagination row
-        page_row = QHBoxLayout()
-        self.prev_page_btn = QPushButton("◀ Предыдущая")
-        self.prev_page_btn.clicked.connect(self._prev_page)
-        page_row.addWidget(self.prev_page_btn)
-
-        self.page_lbl = QLabel("Страница 1")
-        self.page_lbl.setStyleSheet("font-weight: bold; color: #f8fafc;")
-        page_row.addWidget(self.page_lbl)
-
-        self.next_page_btn = QPushButton("Следующая ▶")
-        self.next_page_btn.clicked.connect(self._next_page)
-        page_row.addWidget(self.next_page_btn)
-
-        page_row.addStretch()
-
-        self.status_lbl = QLabel("Готов к работе. Введите имя модели или вставьте ссылку для захвата фото.")
+        status_row = QHBoxLayout()
+        self.status_lbl = QLabel("Готов к работе. Введите запрос или скрольте вниз для бесконечной подгрузки.")
         self.status_lbl.setStyleSheet("color: #94a3b8;")
-        page_row.addWidget(self.status_lbl)
+        status_row.addWidget(self.status_lbl, 1)
 
-        footer_layout.addLayout(page_row)
+        self.load_more_btn = QPushButton("⚡ Загрузить ещё фото")
+        self.load_more_btn.clicked.connect(self.load_more)
+        status_row.addWidget(self.load_more_btn)
+
+        footer_layout.addLayout(status_row)
 
         # Progress bar row
         self.progress_row = QHBoxLayout()
@@ -780,6 +752,11 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(footer)
 
+    def _on_scroll_changed(self, value):
+        max_val = self.scroll_area.verticalScrollBar().maximum()
+        if max_val > 0 and value >= max_val - 200 and not self.is_loading:
+            self.load_more()
+
     def _open_browser_search(self, engine: str):
         q = urllib.parse.quote_plus(self.search_input.text().strip() or "Милена Лисицына")
         target_url = ""
@@ -792,7 +769,7 @@ class MainWindow(QMainWindow):
 
         self.url_input.setText(target_url)
         webbrowser.open(target_url)
-        self.status_lbl.setText("Страница открыта в браузере. Скопируйте ссылку на альбом/выдачу и нажмите 'Захватить'.")
+        self.status_lbl.setText("Страница открыта в браузере. Скопируйте ссылку и нажмите 'Захватить'.")
 
     def _choose_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "Выберите папку для сохранения картинок", self.folder_input.text())
@@ -832,16 +809,23 @@ class MainWindow(QMainWindow):
         self.status_lbl.setText(f"Ошибка захвата: {err}")
         QMessageBox.warning(self, "Ошибка захвата", f"Не удалось захватить фото: {err}")
 
-    def start_search(self, reset_page: bool = True):
-        if reset_page:
+    def start_search(self, reset: bool = True):
+        if self.is_loading:
+            return
+
+        if reset:
             self.current_page = 1
+            self._clear_gallery()
+            self.current_posts = []
+
         query = self.search_input.text().strip()
         source = self.source_combo.currentData()
         rating = self.rating_combo.currentData()
 
+        self.is_loading = True
         self.search_btn.setEnabled(False)
-        self.status_lbl.setText(f"Поиск изображений (стр. {self.current_page})... Пожалуйста, подождите.")
-        self._clear_gallery()
+        self.load_more_btn.setEnabled(False)
+        self.status_lbl.setText(f"Загрузка фото (порция {self.current_page})... Скрольте вниз для продолжения.")
 
         req = SearchRequest(
             query=query,
@@ -856,23 +840,43 @@ class MainWindow(QMainWindow):
         self.search_worker.error.connect(self._on_search_error)
         self.search_worker.start()
 
-    def _on_search_finished(self, result: dict):
-        self.search_btn.setEnabled(True)
-        self.current_posts = result.get("posts", [])
-        total = len(self.current_posts)
-        self.page_lbl.setText(f"Страница {self.current_page}")
+    def load_more(self):
+        if not self.is_loading and self.current_posts:
+            self.current_page += 1
+            self.start_search(reset=False)
 
+    def _on_search_finished(self, result: dict):
+        self.is_loading = False
+        self.search_btn.setEnabled(True)
+        self.load_more_btn.setEnabled(True)
+
+        new_posts = result.get("posts", [])
+        
+        # Deduplicate and append
+        seen_ids = {str(p.get("id")) for p in self.current_posts}
+        added_count = 0
+        for p in new_posts:
+            pid = str(p.get("id"))
+            if pid not in seen_ids:
+                seen_ids.add(pid)
+                self.current_posts.append(p)
+                added_count += 1
+
+        total = len(self.current_posts)
         errors = result.get("errors", [])
-        if errors and total == 0:
-            self.status_lbl.setText(f"{errors[0]}")
+
+        if total == 0:
+            self.status_lbl.setText(errors[0] if errors else "Ничего не найдено.")
         else:
-            self.status_lbl.setText(f"Найдено: {total} картинок (стр. {self.current_page}) по запросу '{result.get('query')}'.")
+            self.status_lbl.setText(f"Всего загружено: {total} картинок. Скрольте вниз для автоматической подгрузки!")
 
         self._render_cards()
 
     def _on_search_error(self, err: str):
+        self.is_loading = False
         self.search_btn.setEnabled(True)
-        self.status_lbl.setText(f"Ошибка поиска: {err}")
+        self.load_more_btn.setEnabled(True)
+        self.status_lbl.setText(f"Ошибка: {err}")
 
     def _clear_gallery(self):
         for i in reversed(range(self.gallery_grid.count())):
@@ -882,10 +886,11 @@ class MainWindow(QMainWindow):
         self.card_widgets.clear()
 
     def _render_cards(self):
-        self._clear_gallery()
         columns = 5
+        existing_count = len(self.card_widgets)
         
-        for idx, post in enumerate(self.current_posts):
+        for idx in range(existing_count, len(self.current_posts)):
+            post = self.current_posts[idx]
             card = ImageCardWidget(post, self._on_card_select, self._open_preview)
             post_id = str(post.get("id"))
             self.card_widgets[post_id] = card
@@ -964,15 +969,6 @@ class MainWindow(QMainWindow):
     def _open_preview(self, post: Dict[str, Any]):
         dialog = PreviewDialog(post, self)
         dialog.exec()
-
-    def _prev_page(self):
-        if self.current_page > 1:
-            self.current_page -= 1
-            self.start_search(reset_page=False)
-
-    def _next_page(self):
-        self.current_page += 1
-        self.start_search(reset_page=False)
 
     def start_download(self):
         if not self.selected_posts:

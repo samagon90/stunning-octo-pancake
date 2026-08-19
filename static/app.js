@@ -5,11 +5,10 @@ const state = {
   currentPage: 1,
   currentQuery: 'Милена Лисицына',
   currentSource: 'adult_meta',
-  currentRating: 'all',
-  currentAspect: 'all',
-  currentSort: 'recent',
+  isLoading: false,
+  hasMore: true,
   previewIndex: -1,
-  mode: 'search', // 'search' or 'browser'
+  mode: 'search',
   settings: {
     download_dir: './downloads',
     naming_pattern: '{source}_{id}_{tags}',
@@ -29,10 +28,9 @@ const searchBtn = document.getElementById('searchBtn');
 const galleryGrid = document.getElementById('galleryGrid');
 const loadingGrid = document.getElementById('loadingGrid');
 const emptyState = document.getElementById('emptyState');
-const paginationBar = document.getElementById('paginationBar');
-const currentPageNum = document.getElementById('currentPageNum');
-const prevPageBtn = document.getElementById('prevPageBtn');
-const nextPageBtn = document.getElementById('nextPageBtn');
+const infiniteScrollContainer = document.getElementById('infiniteScrollContainer');
+const loadingMoreSpinner = document.getElementById('loadingMoreSpinner');
+const loadMoreBtn = document.getElementById('loadMoreBtn');
 const selectedCountBadge = document.getElementById('selectedCountBadge');
 const dlCountSpan = document.getElementById('dlCountSpan');
 const downloadSelectedBtn = document.getElementById('downloadSelectedBtn');
@@ -101,11 +99,37 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   await fetchSettings();
   setupEventListeners();
+  setupInfiniteScroll();
   
-  // Set initial query to popular search
   if (searchInput) searchInput.value = 'Милена Лисицына';
-  performSearch();
+  performSearch(true);
 });
+
+// Infinite Scroll Window Listener
+function setupInfiniteScroll() {
+  window.addEventListener('scroll', () => {
+    if (state.isLoading || !state.hasMore || state.posts.length === 0) return;
+    
+    const scrollPosition = window.innerHeight + window.scrollY;
+    const threshold = document.body.offsetHeight - 400;
+    
+    if (scrollPosition >= threshold) {
+      loadNextPage();
+    }
+  });
+
+  if (loadMoreBtn) {
+    loadMoreBtn.addEventListener('click', () => {
+      loadNextPage();
+    });
+  }
+}
+
+function loadNextPage() {
+  if (state.isLoading || !state.hasMore) return;
+  state.currentPage += 1;
+  performSearch(false);
+}
 
 // Mode Switching
 function switchMode(mode) {
@@ -142,7 +166,7 @@ window.openExternalSearch = function(engine) {
 
   urlGrabberInput.value = targetUrl;
   window.open(targetUrl, '_blank');
-  showToast('Страница открыта в новой вкладке. Скопируйте ссылку и нажмите «Захватить»!', 'info');
+  showToast('Страница открыта в браузере. Скопируйте ссылку и нажмите «Захватить»!', 'info');
 };
 
 // URL Grabber Action
@@ -184,7 +208,7 @@ async function handleUrlGrab() {
 window.applyPreset = function(tags) {
   if (searchInput) searchInput.value = tags;
   state.currentPage = 1;
-  performSearch();
+  performSearch(true);
 };
 
 // Settings Management
@@ -240,8 +264,7 @@ function setupEventListeners() {
 
   if (searchBtn) {
     searchBtn.addEventListener('click', () => {
-      state.currentPage = 1;
-      performSearch();
+      performSearch(true);
     });
   }
 
@@ -249,33 +272,14 @@ function setupEventListeners() {
     searchInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         if (autocompleteList) autocompleteList.classList.add('hidden');
-        state.currentPage = 1;
-        performSearch();
+        performSearch(true);
       }
     });
   }
 
   if (sourceSelect) {
     sourceSelect.addEventListener('change', () => {
-      state.currentPage = 1;
-      performSearch();
-    });
-  }
-
-  // Pagination
-  if (prevPageBtn) {
-    prevPageBtn.addEventListener('click', () => {
-      if (state.currentPage > 1) {
-        state.currentPage--;
-        performSearch();
-      }
-    });
-  }
-
-  if (nextPageBtn) {
-    nextPageBtn.addEventListener('click', () => {
-      state.currentPage++;
-      performSearch();
+      performSearch(true);
     });
   }
 
@@ -318,14 +322,25 @@ function setupEventListeners() {
 }
 
 // Search Execution
-async function performSearch() {
+async function performSearch(reset = true) {
+  if (state.isLoading) return;
+
+  if (reset) {
+    state.currentPage = 1;
+    state.posts = [];
+    state.hasMore = true;
+    showLoading(true);
+  } else {
+    if (loadingMoreSpinner) loadingMoreSpinner.classList.remove('hidden');
+    if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
+  }
+
+  state.isLoading = true;
   const query = searchInput ? searchInput.value.trim() : 'Милена Лисицына';
   const source = sourceSelect ? sourceSelect.value : 'adult_meta';
 
   state.currentQuery = query;
   state.currentSource = source;
-
-  showLoading(true);
   statusBanner.classList.add('hidden');
 
   try {
@@ -340,9 +355,21 @@ async function performSearch() {
     if (!res.ok) throw new Error(`Ошибка сервера: ${res.status}`);
 
     const data = await res.json();
-    state.posts = data.posts || [];
+    const newItems = data.posts || [];
 
-    if (data.errors && data.errors.length > 0) {
+    if (newItems.length === 0) {
+      state.hasMore = false;
+    } else {
+      const seenIds = new Set(state.posts.map(p => p.id));
+      for (const item of newItems) {
+        if (!seenIds.has(item.id)) {
+          seenIds.add(item.id);
+          state.posts.push(item);
+        }
+      }
+    }
+
+    if (data.errors && data.errors.length > 0 && state.posts.length === 0) {
       statusBannerText.innerText = data.errors.join(' | ');
       statusBanner.classList.remove('hidden');
     }
@@ -351,10 +378,13 @@ async function performSearch() {
   } catch (err) {
     console.error('Search error:', err);
     showToast('Ошибка поиска: ' + err.message, 'error');
-    galleryGrid.innerHTML = '';
-    emptyState.classList.remove('hidden');
   } finally {
+    state.isLoading = false;
     showLoading(false);
+    if (loadingMoreSpinner) loadingMoreSpinner.classList.add('hidden');
+    if (loadMoreBtn && state.hasMore && state.posts.length > 0) {
+      loadMoreBtn.classList.remove('hidden');
+    }
   }
 }
 
@@ -362,10 +392,9 @@ function showLoading(isLoading) {
   if (isLoading) {
     emptyState.classList.add('hidden');
     galleryGrid.classList.add('hidden');
-    paginationBar.classList.add('hidden');
+    if (infiniteScrollContainer) infiniteScrollContainer.classList.add('hidden');
     loadingGrid.classList.remove('hidden');
     
-    // Render skeleton cards
     loadingGrid.innerHTML = Array(10).fill(0).map(() => `
       <div class="bg-dark-800 rounded-2xl p-3 border border-slate-800 animate-pulse">
         <div class="w-full h-56 bg-dark-900 rounded-xl mb-3"></div>
@@ -376,6 +405,9 @@ function showLoading(isLoading) {
   } else {
     loadingGrid.classList.add('hidden');
     galleryGrid.classList.remove('hidden');
+    if (infiniteScrollContainer && state.posts.length > 0) {
+      infiniteScrollContainer.classList.remove('hidden');
+    }
   }
 }
 
@@ -384,14 +416,12 @@ function renderGallery() {
   if (!state.posts || state.posts.length === 0) {
     galleryGrid.innerHTML = '';
     emptyState.classList.remove('hidden');
-    paginationBar.classList.add('hidden');
+    if (infiniteScrollContainer) infiniteScrollContainer.classList.add('hidden');
     return;
   }
 
   emptyState.classList.add('hidden');
-  paginationBar.classList.remove('hidden');
-  currentPageNum.innerText = state.currentPage;
-  prevPageBtn.disabled = state.currentPage <= 1;
+  if (infiniteScrollContainer) infiniteScrollContainer.classList.remove('hidden');
 
   galleryGrid.innerHTML = state.posts.map((post, idx) => {
     const isSelected = state.selectedPosts.has(post.id);
@@ -609,8 +639,7 @@ function toggleModalPostSelection() {
 window.searchByTag = function(tag) {
   closeModal();
   if (searchInput) searchInput.value = tag;
-  state.currentPage = 1;
-  performSearch();
+  performSearch(true);
 };
 
 // Batch Downloading
