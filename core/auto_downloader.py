@@ -9,14 +9,14 @@ from pathlib import Path
 from typing import List, Dict, Any, Callable, Optional
 from core.models import Post
 from core.providers.adult_meta import AdultMetaSearchProvider
-from core.providers.direct_search import search_yandex_touch, search_google_gbv, search_bing_direct
+from core.providers.direct_search import search_yandex_touch, search_google_gbv
 from core.providers.coomer import CoomerModelProvider
 from core.providers.erome import EroMeProvider
 from core.downloader import get_referer_for_url, sanitize_filename
 
 logger = logging.getLogger(__name__)
 
-MAX_STORAGE_LIMIT_BYTES = 1024 * 1024 * 1024  # 1 GB in bytes
+MAX_STORAGE_LIMIT_BYTES = 1024 * 1024 * 1024  # 1 GB
 
 class AutoModelDownloader:
     def __init__(self, target_dir: str = "./Milena_Lisitsyna_Photos", max_bytes: int = MAX_STORAGE_LIMIT_BYTES):
@@ -28,7 +28,6 @@ class AutoModelDownloader:
         self.should_stop = False
 
     def get_current_folder_size(self) -> int:
-        """Calculate existing folder size on disk."""
         total = 0
         if self.target_dir.exists():
             for f in self.target_dir.glob("*.*"):
@@ -37,13 +36,13 @@ class AutoModelDownloader:
         return total
 
     async def gather_all_candidate_photos(self, progress_callback: Optional[Callable] = None) -> List[Post]:
-        """Deep multi-page search across all model and image databases."""
         search_queries = [
             "Милена Лисицына",
             "Milena Lisitsyna",
             "Milena Fox",
-            "Милена Лисицына фотосет",
             "Милена Лисицына эротика",
+            "Милена Лисицына фотосет",
+            "Milena Fox photoshoot",
             "Milena Lisitsyna onlyfans"
         ]
 
@@ -52,12 +51,11 @@ class AutoModelDownloader:
         seen_urls = set()
 
         if progress_callback:
-            progress_callback({"status": "searching", "message": "Поиск всех фотосетов и галерей во всех базах..."})
+            progress_callback({"status": "searching", "message": "Поиск фотосетов Милены Лисицыной во всех базах..."})
 
         tasks = []
         for q in search_queries:
-            # Query pages 1, 2, 3, 4 for each term
-            for page in range(1, 5):
+            for page in range(1, 4):
                 tasks.append(provider.search(q, page=page, limit=40))
 
         gathered = await asyncio.gather(*tasks, return_exceptions=True)
@@ -65,29 +63,19 @@ class AutoModelDownloader:
             if isinstance(g, list):
                 for p in g:
                     if p.file_url and p.file_url not in seen_urls:
-                        # Filter out non-images or tiny icons
-                        if not any(bad in p.file_url.lower() for bad in ["favicon", "pixel.gif", "spacer", "logo"]):
-                            seen_urls.add(p.file_url)
-                            all_posts.append(p)
+                        seen_urls.add(p.file_url)
+                        all_posts.append(p)
 
         logger.info(f"Total candidate photos gathered: {len(all_posts)}")
         return all_posts
 
     async def run_auto_download(self, progress_callback: Optional[Callable] = None) -> Dict[str, Any]:
-        """Automatically find and download all photos with strict 1GB cap."""
         self.is_running = True
         self.should_stop = False
         self.target_dir.mkdir(parents=True, exist_ok=True)
 
         existing_bytes = self.get_current_folder_size()
         self.downloaded_bytes = existing_bytes
-        remaining_budget = max(0, self.max_bytes - existing_bytes)
-
-        if remaining_budget <= 10 * 1024 * 1024:
-            msg = f"Папка уже содержит {round(existing_bytes / (1024*1024), 1)} MB. Лимит в 1 GB уже достигнут."
-            if progress_callback:
-                progress_callback({"status": "limit_reached", "message": msg, "total_mb": round(existing_bytes / (1024*1024), 1)})
-            return {"status": "limit_reached", "downloaded_count": 0, "total_mb": round(existing_bytes / (1024*1024), 1)}
 
         posts = await self.gather_all_candidate_photos(progress_callback)
         if not posts:
@@ -99,12 +87,14 @@ class AutoModelDownloader:
         if progress_callback:
             progress_callback({
                 "status": "downloading",
-                "message": f"Найдено {len(posts)} фото. Начинаем скачивание (лимит 1 GB)...",
+                "message": f"Найдено {len(posts)} фото. Скачивание (лимит 1 GB)...",
+                "count": 0,
+                "size_mb": round(self.downloaded_bytes / (1024*1024), 1),
                 "total_candidates": len(posts)
             })
 
-        semaphore = asyncio.Semaphore(5)
-        connector = aiohttp.TCPConnector(ssl=False, limit=15)
+        semaphore = asyncio.Semaphore(6)
+        connector = aiohttp.TCPConnector(ssl=False, limit=20)
         start_time = time.time()
 
         async def download_single(idx: int, post: Post, session: aiohttp.ClientSession):
@@ -116,6 +106,8 @@ class AutoModelDownloader:
                     return
 
                 ext = post.file_ext or "jpg"
+                if len(ext) > 4:
+                    ext = "jpg"
                 filename = f"Milena_Lisitsyna_{idx+1:03d}_{post.id}.{ext}"
                 filepath = self.target_dir / filename
 
@@ -139,19 +131,12 @@ class AutoModelDownloader:
                     try:
                         async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                             if resp.status == 200:
-                                chunks = []
-                                file_size = 0
-                                async for chunk in resp.content.iter_chunked(65536):
-                                    chunks.append(chunk)
-                                    file_size += len(chunk)
-                                    if self.downloaded_bytes + file_size >= self.max_bytes:
-                                        self.should_stop = True
-                                        break
+                                data = await resp.read()
+                                file_size = len(data)
                                 
-                                if file_size > 1024 and (self.downloaded_bytes + file_size <= self.max_bytes + 1024*1024):
+                                if file_size > 1024 and (self.downloaded_bytes + file_size <= self.max_bytes):
                                     with open(filepath, "wb") as f:
-                                        for c in chunks:
-                                            f.write(c)
+                                        f.write(data)
                                     
                                     self.downloaded_bytes += file_size
                                     self.downloaded_count += 1
@@ -191,7 +176,7 @@ class AutoModelDownloader:
         if progress_callback:
             progress_callback({
                 "status": "completed",
-                "message": f"Успешно сохранено {self.downloaded_count} фото (Всего: {total_mb} MB из 1024 MB).",
+                "message": f"Сохранено {self.downloaded_count} фото (Всего: {total_mb} MB из 1024 MB).",
                 "folder": str(self.target_dir.resolve()),
                 "size_mb": total_mb,
                 "count": self.downloaded_count

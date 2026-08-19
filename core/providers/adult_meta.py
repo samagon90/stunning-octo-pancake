@@ -4,7 +4,7 @@ import re
 from typing import List
 from core.models import Post
 from core.providers.base import BaseProvider
-from core.providers.direct_search import search_yandex_touch, search_google_gbv
+from core.providers.direct_search import search_yandex_touch, search_google_gbv, search_bing_direct
 from core.providers.coomer import CoomerModelProvider
 from core.providers.erome import EroMeProvider
 from core.providers.reddit import RedditImageProvider
@@ -12,36 +12,25 @@ from core.translit import transliterate, is_cyrillic
 
 logger = logging.getLogger(__name__)
 
-def is_post_relevant(post: Post, query: str) -> bool:
-    """Filter out garbage results like parliament buildings, news, or unrelated stock photos."""
-    tokens = [t.lower() for t in re.findall(r'[\w\-]+', query) if len(t) > 2]
-    if not tokens:
-        return True
-
-    latin_tokens = [transliterate(t).lower() for t in tokens]
-    all_tokens = set(tokens + latin_tokens)
-
-    # Search space includes tags, URL, and source page
-    combined_info = " ".join(post.tags).lower() + " " + post.file_url.lower() + " " + post.source_page_url.lower()
-
-    # Discard obvious non-NSFW / non-model noise (parliament, government, news, furniture, politics)
-    garbage_words = ["parliament", "minister", "politics", "president", "assembly", "congress", "building", "statue", "furniture"]
-    if any(gb in combined_info for gb in garbage_words) and not any(tok in combined_info for tok in all_tokens):
-        return False
-
-    # Check if at least one query token matches
-    return any(tok in combined_info for tok in all_tokens)
+def is_garbage_image(url: str) -> bool:
+    """Filter out tracking pixels, icons, and non-content noise."""
+    lower_u = url.lower()
+    bad_patterns = [
+        "favicon", "pixel.gif", "spacer", "logo", "button", "avatar",
+        "icon", "advert", "banner", "static/img", "parliament", "minister"
+    ]
+    return any(p in lower_u for p in bad_patterns)
 
 class AdultMetaSearchProvider(BaseProvider):
     name = "adult_meta"
-    display_name = "👑 ПОИСК МОДЕЛЕЙ И ФОТОСЕТОВ 18+ (Яндекс + Coomer + EroMe + Reddit + Google)"
+    display_name = "👑 ПОИСК МОДЕЛЕЙ И ФОТОСЕТОВ 18+ (Яндекс + EroMe + Coomer + Google + Reddit)"
 
     def __init__(self):
         self.coomer = CoomerModelProvider()
         self.erome = EroMeProvider()
         self.reddit = RedditImageProvider()
 
-    async def search(self, query: str, page: int = 1, limit: int = 50, rating: str = "all") -> List[Post]:
+    async def search(self, query: str, page: int = 1, limit: int = 60, rating: str = "all") -> List[Post]:
         if not query.strip():
             query = "model"
 
@@ -53,20 +42,20 @@ class AdultMetaSearchProvider(BaseProvider):
 
         tasks = []
         for q in queries:
-            # 1. Yandex Touch (Most accurate for Russian models and photos)
-            tasks.append(search_yandex_touch(q, page=page, limit=35))
+            # 1. Yandex (Top Russian search engine)
+            tasks.append(search_yandex_touch(q, page=page, limit=40))
             
-            # 2. Coomer.su (OnlyFans / Fansly / Patreon sets)
-            tasks.append(self.coomer.search(q, page=page, limit=35, rating=rating))
+            # 2. EroMe (Album galleries)
+            tasks.append(self.erome.search(q, page=page, limit=30, rating=rating))
             
-            # 3. EroMe (Model albums & photosets)
-            tasks.append(self.erome.search(q, page=page, limit=25, rating=rating))
+            # 3. Coomer.su (OnlyFans / Fansly archives)
+            tasks.append(self.coomer.search(q, page=page, limit=30, rating=rating))
             
-            # 4. Reddit NSFW (Cosplay & model subs)
+            # 4. Reddit NSFW
             tasks.append(self.reddit.search(q, page=page, limit=25, rating=rating))
             
             # 5. Google Images
-            tasks.append(search_google_gbv(q, page=page, limit=20))
+            tasks.append(search_google_gbv(q, page=page, limit=25))
 
         gathered = await asyncio.gather(*tasks, return_exceptions=True)
         results: List[Post] = []
@@ -75,30 +64,19 @@ class AdultMetaSearchProvider(BaseProvider):
             if isinstance(g, list):
                 results.extend(g)
             elif isinstance(g, Exception):
-                logger.debug(f"Sub-provider error: {g}")
+                logger.debug(f"Search provider error: {g}")
 
-        # Filter strictly for relevance and deduplicate
+        # Deduplicate and keep all valid image URLs
         seen = set()
         deduped: List[Post] = []
         
         for p in results:
             if not p.file_url or p.file_url in seen:
                 continue
-            
-            # Filter out irrelevant noise (e.g. parliament, news)
-            if not is_post_relevant(p, query):
+            if is_garbage_image(p.file_url):
                 continue
 
             seen.add(p.file_url)
             deduped.append(p)
-
-        # If strict relevance filtered too much, add remaining without garbage
-        if len(deduped) < 10:
-            for p in results:
-                if p.file_url and p.file_url not in seen:
-                    combined = (p.file_url + " " + p.source_page_url).lower()
-                    if not any(gb in combined for gb in ["parliament", "politics", "minister", "congress"]):
-                        seen.add(p.file_url)
-                        deduped.append(p)
 
         return deduped

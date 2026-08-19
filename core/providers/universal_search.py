@@ -1,12 +1,11 @@
 import asyncio
 import logging
-import re
 from typing import List
 from core.models import Post
 from core.providers.base import BaseProvider
 from core.providers.direct_search import search_yandex_touch, search_google_gbv, search_bing_direct, search_yahoo_direct
 from core.providers.reddit import RedditImageProvider
-from core.providers.adult_meta import is_post_relevant
+from core.providers.adult_meta import is_garbage_image
 from core.translit import transliterate, is_cyrillic
 
 logger = logging.getLogger(__name__)
@@ -30,7 +29,7 @@ class UniversalWebSearchProvider(BaseProvider):
 
         reddit = RedditImageProvider()
         for q in queries:
-            tasks.append(search_yandex_touch(q, page=page, limit=30))
+            tasks.append(search_yandex_touch(q, page=page, limit=35))
             tasks.append(search_google_gbv(q, page=page, limit=25))
             tasks.append(search_yahoo_direct(q, page=page, limit=25))
             tasks.append(reddit.search(q, page=page, limit=20, rating=rating))
@@ -42,18 +41,12 @@ class UniversalWebSearchProvider(BaseProvider):
             elif isinstance(g, Exception):
                 logger.debug(f"Search task warning: {g}")
 
-        # Deduplicate and filter relevance
+        # Deduplicate and filter out garbage
         seen = set()
         deduped = []
         for p in results:
             if p.file_url and p.file_url not in seen:
-                if is_post_relevant(p, query):
-                    seen.add(p.file_url)
-                    deduped.append(p)
-
-        if not deduped:
-            for p in results:
-                if p.file_url and p.file_url not in seen:
+                if not is_garbage_image(p.file_url):
                     seen.add(p.file_url)
                     deduped.append(p)
 

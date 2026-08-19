@@ -28,7 +28,7 @@ def main():
     def on_progress(data):
         status = data.get("status")
         if status == "searching":
-            print("[1/2] Поиск всех фотосетов и альбомов Милены Лисицыной в сети...")
+            print("[1/2] Поиск всех фотосессий и альбомов Милены Лисицыной в сети...")
         elif status == "downloading":
             count = data.get("count", 0)
             size_mb = data.get("size_mb", 0)
