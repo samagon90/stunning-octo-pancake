@@ -4,14 +4,13 @@ import zipfile
 import asyncio
 import aiohttp
 from typing import Dict, Any, List
-from PIL import Image, ImageDraw, ImageFont
 from fastapi import FastAPI, Query, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse, Response, StreamingResponse, FileResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from core.models import SearchRequest, DownloadRequest
 from core.providers.manager import ProviderManager
-from core.downloader import DownloadManager
+from core.downloader import DownloadManager, get_referer_for_url
 from core.tag_suggest import suggest_tags, POPULAR_TAGS
 from core.settings import load_settings, save_settings
 from core.scraper_engine import extract_images_from_url
@@ -30,42 +29,17 @@ app.add_middleware(
 provider_manager = ProviderManager()
 download_manager = DownloadManager()
 
-def generate_fallback_placeholder(title: str = "Artwork Preview", width: int = 600, height: int = 800) -> bytes:
-    """Generate a high-quality fallback gradient image."""
-    img = Image.new("RGB", (width, height), color=(18, 20, 32))
-    draw = ImageDraw.Draw(img)
-    
-    # Draw dark cyberpunk gradient-like decorative background
-    for y in range(0, height, 4):
-        alpha = int(255 * (y / height))
-        r = int(23 + 40 * (y / height))
-        g = int(25 + 10 * (y / height))
-        b = int(40 + 50 * (y / height))
-        draw.line([(0, y), (width, y)], fill=(r, g, b), width=4)
-        
-    # Draw glowing borders
-    draw.rectangle([12, 12, width - 12, height - 12], outline=(236, 72, 153), width=2)
-    
-    # Text
-    draw.text((width // 2 - 120, height // 2 - 20), title, fill=(244, 114, 182))
-    draw.text((width // 2 - 90, height // 2 + 20), f"{width} x {height}", fill=(148, 163, 184))
-    
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=85)
-    return buf.getvalue()
-
 @app.get("/api/providers")
 async def get_providers():
     providers = provider_manager.get_providers_list()
-    providers.append({"id": "all", "name": "✨ Все источники (All Combined)"})
     return {"providers": providers}
 
 @app.get("/api/search")
 async def search_images(
     query: str = "",
-    source: str = "rule34",
+    source: str = "adult_meta",
     page: int = 1,
-    limit: int = 40,
+    limit: int = 50,
     rating: str = "all",
     min_width: int = 0,
     min_height: int = 0,
@@ -137,71 +111,43 @@ async def download_as_zip(req: DownloadRequest):
     if not req.posts:
         raise HTTPException(status_code=400, detail="Нет выбранных изображений")
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) NSFWDownloader/1.0"
-    }
-
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        async with aiohttp.ClientSession(headers=headers) as session:
-            for post in req.posts[:100]:
-                url = post.get("file_url") or post.get("sample_url")
-                filename = download_manager.format_filename(post, req.naming_pattern)
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector) as session:
+            for post in req.posts:
+                url = post.get("file_url") or post.get("sample_url") or post.get("preview_url")
+                if not url or not url.startswith("http"):
+                    continue
                 
-                downloaded = False
-                if url:
+                filename = download_manager.format_filename(post, req.naming_pattern)
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+                    "Referer": get_referer_for_url(url),
+                    "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+                }
+                
+                for attempt in range(2):
                     try:
-                        async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                        async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=25)) as resp:
                             if resp.status == 200:
                                 data = await resp.read()
-                                zip_file.writestr(filename, data)
-                                downloaded = True
+                                if len(data) > 500:
+                                    zip_file.writestr(filename, data)
+                                    break
                     except Exception:
                         pass
-                
-                # If network fails in demo mode, write placeholder artwork into zip
-                if not downloaded:
-                    tags = post.get("tags", ["art"])
-                    title = " ".join(tags[:3]) if tags else "Artwork"
-                    data = generate_fallback_placeholder(title, post.get("width", 800), post.get("height", 1000))
-                    zip_file.writestr(filename, data)
 
     zip_buffer.seek(0)
     return StreamingResponse(
         zip_buffer,
         media_type="application/zip",
-        headers={"Content-Disposition": "attachment; filename=nsfw_images_collection.zip"}
+        headers={"Content-Disposition": "attachment; filename=images_collection.zip"}
     )
-
-def get_referer_for_url(url: str) -> str:
-    if not url:
-        return "https://google.com/"
-    if "rule34.xxx" in url:
-        return "https://rule34.xxx/"
-    elif "gelbooru.com" in url:
-        return "https://gelbooru.com/"
-    elif "danbooru.donmai.us" in url:
-        return "https://danbooru.donmai.us/"
-    elif "yande.re" in url:
-        return "https://yande.re/"
-    elif "konachan.com" in url:
-        return "https://konachan.com/"
-    elif "realbooru.com" in url:
-        return "https://realbooru.com/"
-    elif "coomer.su" in url:
-        return "https://coomer.su/"
-    elif "erome.com" in url:
-        return "https://www.erome.com/"
-    try:
-        from urllib.parse import urlparse
-        parsed = urlparse(url)
-        return f"{parsed.scheme}://{parsed.netloc}/"
-    except Exception:
-        return "https://google.com/"
 
 @app.get("/api/proxy-image")
 async def proxy_image(url: str):
-    """Image proxy to bypass CORS and anti-hotlinking with graceful fallback."""
+    """Image proxy to bypass CORS and anti-hotlinking."""
     if not url:
         raise HTTPException(status_code=400, detail="Missing url")
     
@@ -212,8 +158,9 @@ async def proxy_image(url: str):
     }
 
     try:
-        async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector, headers=headers) as session:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                 if resp.status == 200:
                     content_type = resp.headers.get("Content-Type", "image/jpeg")
                     data = await resp.read()
@@ -221,8 +168,9 @@ async def proxy_image(url: str):
     except Exception:
         pass
     
-    fallback_data = generate_fallback_placeholder("Image Not Available", 400, 560)
-    return Response(content=fallback_data, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=3600"})
+    # Return 1x1 transparent PNG if image is dead/offline (NEVER generate fake drawing)
+    transparent_png = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\rIDATx\x9cc`\x00\x00\x00\x02\x00\x01H\xaf\xa4q\x00\x00\x00\x00IEND\xaeB`\x82'
+    return Response(content=transparent_png, media_type="image/png", status_code=200)
 
 @app.get("/api/settings")
 async def get_settings_endpoint():

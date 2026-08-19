@@ -10,8 +10,23 @@ logger = logging.getLogger(__name__)
 
 IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.jfif')
 
+def upgrade_to_highres_url(img_url: str) -> str:
+    """Convert thumbnail URLs to full high-resolution image URLs where possible."""
+    # Yandex avatar thumb to orig
+    if "avatars.mds.yandex.net/get-images-cbir" in img_url:
+        img_url = re.sub(r'/(?:[0-9a-z_]+)$', '/orig', img_url)
+    elif "avatars.mds.yandex.net" in img_url:
+        img_url = re.sub(r'/(?:x\d+|\d+x\d+|orig)$', '/orig', img_url)
+    
+    # Reddit preview to i.redd.it full
+    if "preview.redd.it" in img_url:
+        img_url = img_url.replace("preview.redd.it", "i.redd.it")
+        img_url = img_url.split("?")[0]
+        
+    return img_url
+
 async def extract_images_from_url(url: str, custom_headers: Dict[str, str] = None) -> List[Post]:
-    """Fetch any web page or search URL and extract all full-resolution images."""
+    """Fetch any webpage, gallery, search result, or album and extract ALL full-resolution images."""
     url = url.strip()
     if not url.startswith("http://") and not url.startswith("https://"):
         url = "https://" + url
@@ -29,7 +44,8 @@ async def extract_images_from_url(url: str, custom_headers: Dict[str, str] = Non
     seen_urls = set()
 
     try:
-        async with aiohttp.ClientSession(headers=headers, timeout=aiohttp.ClientTimeout(total=20)) as session:
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector, headers=headers, timeout=aiohttp.ClientTimeout(total=25)) as session:
             async with session.get(url) as resp:
                 if resp.status != 200:
                     logger.warning(f"Fetch status {resp.status} for {url}")
@@ -38,30 +54,32 @@ async def extract_images_from_url(url: str, custom_headers: Dict[str, str] = Non
                 raw_content = await resp.text()
                 content = html.unescape(raw_content)
 
-                # 1. Search for JSON attributes with image URLs (Bing murl, Yandex img_href, Yahoo imgurl, etc.)
-                json_img_matches = re.findall(r'["\'](?:murl|img_href|imgurl|originUrl|file_url|large_file_url|fullUrl|thumbUrl)["\']\s*:\s*["\'](https?://[^"\']+)["\']', content)
-                for clean_u in json_img_matches:
-                    clean_u = clean_u.replace("\\/", "/")
-                    if clean_u not in seen_urls and not any(bad in clean_u.lower() for bad in ["favicon", "pixel.gif", "spacer"]):
-                        seen_urls.add(clean_u)
+                # 1. Search for JSON attributes with high-res image URLs (Bing murl, Yandex img_href, Yahoo imgurl, etc.)
+                json_img_matches = re.findall(r'["\'](?:murl|img_href|imgurl|originUrl|file_url|large_file_url|fullUrl|thumbUrl|img_url|media_url)["\']\s*:\s*["\'](https?://[^"\']+)["\']', content)
+                for raw_u in json_img_matches:
+                    clean_u = raw_u.replace("\\/", "/").strip()
+                    highres_u = upgrade_to_highres_url(clean_u)
+                    
+                    if highres_u not in seen_urls and not any(bad in highres_u.lower() for bad in ["favicon", "pixel.gif", "spacer", "logo"]):
+                        seen_urls.add(highres_u)
                         posts.append(Post(
-                            id=f"grab_{abs(hash(clean_u)) % 10000000}",
-                            source="Page Grubber",
-                            file_url=clean_u,
+                            id=f"grab_{abs(hash(highres_u)) % 10000000}",
+                            source="Page Image",
+                            file_url=highres_u,
                             preview_url=clean_u,
-                            sample_url=clean_u,
+                            sample_url=highres_u,
                             width=1920,
                             height=1080,
-                            file_ext=clean_u.split(".")[-1].split("?")[0].lower() if "." in clean_u else "jpg",
+                            file_ext=highres_u.split(".")[-1].split("?")[0].lower() if "." in highres_u else "jpg",
                             tags=["captured_image"],
                             rating="explicit",
-                            score=950,
+                            score=980,
                             source_page_url=url,
                             created_at="browser_capture"
                         ))
 
-                # 2. Extract standard <img> tags with data-src, data-original, src
-                img_tags = re.findall(r'<img[^>]+(?:data-src|data-original|data-full|data-highres|src)=[\'"]([^\'"]+)[\'"]', content, re.IGNORECASE)
+                # 2. Extract standard <img> tags with data-src, data-original, data-highres, src
+                img_tags = re.findall(r'<img[^>]+(?:data-src|data-original|data-full|data-highres|data-zoom-src|src)=[\'"]([^\'"]+)[\'"]', content, re.IGNORECASE)
                 for raw_u in img_tags:
                     clean_u = raw_u.strip()
                     if clean_u.startswith("//"):
@@ -73,28 +91,29 @@ async def extract_images_from_url(url: str, custom_headers: Dict[str, str] = Non
                     if not clean_u.startswith("http"):
                         continue
                     
-                    if any(bad in clean_u.lower() for bad in ["favicon", "icon", "logo", "pixel.gif", "spacer", "button"]):
+                    if any(bad in clean_u.lower() for bad in ["favicon", "icon", "logo", "pixel.gif", "spacer", "button", "avatar"]):
                         continue
 
-                    if clean_u not in seen_urls:
-                        seen_urls.add(clean_u)
+                    highres_u = upgrade_to_highres_url(clean_u)
+                    if highres_u not in seen_urls:
+                        seen_urls.add(highres_u)
                         posts.append(Post(
-                            id=f"grab_{abs(hash(clean_u)) % 10000000}",
-                            source="Page Image",
-                            file_url=clean_u,
+                            id=f"grab_{abs(hash(highres_u)) % 10000000}",
+                            source="Web Image",
+                            file_url=highres_u,
                             preview_url=clean_u,
-                            sample_url=clean_u,
+                            sample_url=highres_u,
                             width=1920,
                             height=1080,
-                            file_ext=clean_u.split(".")[-1].split("?")[0].lower() if "." in clean_u else "jpg",
+                            file_ext=highres_u.split(".")[-1].split("?")[0].lower() if "." in highres_u else "jpg",
                             tags=["captured_image"],
                             rating="explicit",
-                            score=900,
+                            score=920,
                             source_page_url=url,
                             created_at="browser_capture"
                         ))
 
-                # 3. Extract <a> links that directly link to images or google imgurl
+                # 3. Extract <a> direct links to images and google imgurl
                 google_imgurls = re.findall(r'imgurl=(https?://[^&"\'\s]+)', content)
                 for raw_u in google_imgurls:
                     clean_u = urllib.parse.unquote(raw_u)
@@ -111,7 +130,7 @@ async def extract_images_from_url(url: str, custom_headers: Dict[str, str] = Non
                             file_ext=clean_u.split(".")[-1].split("?")[0].lower() if "." in clean_u else "jpg",
                             tags=["captured_image"],
                             rating="explicit",
-                            score=980,
+                            score=990,
                             source_page_url=url,
                             created_at="browser_capture"
                         ))
