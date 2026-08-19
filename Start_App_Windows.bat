@@ -1,8 +1,11 @@
 @echo off
-title NSFW Image Hunter & Downloader
-python -m pip install -r requirements.txt --quiet --disable-pip-version-check
-python app_launcher.py --mode gui
-if %errorlevel% neq 0 (
-    python app_launcher.py --mode web
+title NSFW Image Hunter Launcher
+cd /d "%~dp0"
+if exist "%~dp0dist\NSFW_Image_Hunter\NSFW_Image_Hunter.exe" (
+    start "" "%~dp0dist\NSFW_Image_Hunter\NSFW_Image_Hunter.exe"
+    exit /b
 )
-pause
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0installer.ps1"
+if %errorlevel% neq 0 (
+    pause
+)

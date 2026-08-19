@@ -1,4 +1,7 @@
 @echo off
-title Build EXE - NSFW Image Hunter
-python build_exe.py
-pause
+title Build EXE
+cd /d "%~dp0"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0installer.ps1"
+if %errorlevel% neq 0 (
+    pause
+)

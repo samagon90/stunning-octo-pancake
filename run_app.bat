@@ -1,7 +1,7 @@
 @echo off
-title NSFW Image Hunter & Downloader
-python app_launcher.py --mode gui
+title NSFW Image Hunter
+cd /d "%~dp0"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0installer.ps1"
 if %errorlevel% neq 0 (
-    python app_launcher.py --mode web
+    pause
 )
-pause
