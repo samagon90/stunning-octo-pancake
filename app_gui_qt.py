@@ -584,7 +584,7 @@ class MainWindow(QMainWindow):
 
         # Search Query Input
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Введите теги через пробел (например: solo 1girl highres bikini)...")
+        self.search_input.setPlaceholderText("Введите имя модели или теги (например: Милена Лисицына, solo bikini)...")
         self.search_input.returnPressed.connect(self.start_search)
         
         # Tag Autocomplete

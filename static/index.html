@@ -60,15 +60,16 @@
           
           <!-- Source Dropdown -->
           <select id="sourceSelect" class="bg-dark-800 text-slate-200 text-xs font-semibold px-3 py-2 rounded-lg border border-slate-700 focus:outline-none focus:border-brand-500 cursor-pointer">
+            <option value="web" selected>🌐 Поиск в интернете (Фото, Модели, Знаменитости)</option>
+            <option value="all">✨ Все источники сразу (Web + Все Booru)</option>
+            <option value="realbooru">Realbooru (Косплей и реальные фото)</option>
             <option value="rule34">Rule34 (xxx)</option>
             <option value="gelbooru">Gelbooru</option>
             <option value="danbooru">Danbooru</option>
             <option value="yandere">Yande.re (4K)</option>
             <option value="konachan">Konachan (Wallpapers)</option>
-            <option value="realbooru">Realbooru (Cosplay)</option>
             <option value="waifu_im">Waifu.im (AI & Anime)</option>
             <option value="safebooru">Safebooru (Safe)</option>
-            <option value="all">✨ Все источники (All)</option>
             <option value="demo">🎨 Демо-режим (Offline)</option>
           </select>
 
@@ -77,7 +78,7 @@
             <input 
               type="text" 
               id="searchInput"
-              placeholder="Введите теги (например: solo 1girl highres bikini)..." 
+              placeholder="Введите имя модели или теги (например: Милена Лисицына, solo bikini)..." 
               class="w-full bg-transparent px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none"
               autocomplete="off"
             />

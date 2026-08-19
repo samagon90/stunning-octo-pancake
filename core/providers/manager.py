@@ -2,7 +2,9 @@ import asyncio
 import logging
 from typing import Dict, List, Optional, Any
 from core.models import Post, SearchRequest
+from core.translit import is_cyrillic, expand_query_for_booru, transliterate
 from core.providers.base import BaseProvider
+from core.providers.duckduckgo_images import DuckDuckGoImageProvider
 from core.providers.rule34 import Rule34Provider
 from core.providers.gelbooru import GelbooruProvider
 from core.providers.danbooru import DanbooruProvider
@@ -18,21 +20,31 @@ logger = logging.getLogger(__name__)
 class ProviderManager:
     def __init__(self):
         self.providers: Dict[str, BaseProvider] = {
+            "web": DuckDuckGoImageProvider(),
+            "realbooru": RealbooruProvider(),
             "rule34": Rule34Provider(),
             "gelbooru": GelbooruProvider(),
             "danbooru": DanbooruProvider(),
             "yandere": YandereProvider(),
             "konachan": KonachanProvider(),
-            "realbooru": RealbooruProvider(),
-            "safebooru": SafebooruProvider(),
             "waifu_im": WaifuImProvider(),
+            "safebooru": SafebooruProvider(),
             "demo": MockProvider()
         }
 
     def get_providers_list(self) -> List[Dict[str, str]]:
         return [
-            {"id": k, "name": v.display_name}
-            for k, v in self.providers.items()
+            {"id": "web", "name": "🌐 Поиск по интернету (Web Search - Фото, Модели, Арты)"},
+            {"id": "all", "name": "✨ Все источники сразу (Web + Все Booru)"},
+            {"id": "realbooru", "name": "Realbooru (Косплей и реальные фото)"},
+            {"id": "rule34", "name": "Rule34 (xxx)"},
+            {"id": "gelbooru", "name": "Gelbooru"},
+            {"id": "danbooru", "name": "Danbooru"},
+            {"id": "yandere", "name": "Yande.re (4K обои)"},
+            {"id": "konachan", "name": "Konachan"},
+            {"id": "waifu_im", "name": "Waifu.im (Аниме и AI)"},
+            {"id": "safebooru", "name": "Safebooru (Safe)"},
+            {"id": "demo", "name": "Демо-режим (Offline)"}
         ]
 
     async def search(self, req: SearchRequest) -> Dict[str, Any]:
@@ -40,42 +52,54 @@ class ProviderManager:
         results: List[Post] = []
         errors: List[str] = []
 
+        query = req.query.strip()
+        booru_query = expand_query_for_booru(query) if is_cyrillic(query) else query
+
         if source == "all":
-            # Search across top providers concurrently
-            active_sources = ["rule34", "gelbooru", "yandere", "danbooru"]
-            tasks = []
-            per_limit = max(10, req.limit // len(active_sources))
-            for s in active_sources:
-                provider = self.providers.get(s)
-                if provider:
-                    tasks.append(provider.search(req.query, req.page, per_limit, req.rating))
+            # Search across Web + Booru simultaneously
+            active_tasks = [
+                self.providers["web"].search(query, req.page, req.limit, req.rating),
+                self.providers["realbooru"].search(booru_query, req.page, req.limit // 2, req.rating),
+                self.providers["rule34"].search(booru_query, req.page, req.limit // 2, req.rating),
+                self.providers["gelbooru"].search(booru_query, req.page, req.limit // 2, req.rating)
+            ]
             
-            gathered = await asyncio.gather(*tasks, return_exceptions=True)
-            for s, res in zip(active_sources, gathered):
+            gathered = await asyncio.gather(*active_tasks, return_exceptions=True)
+            for res in gathered:
                 if isinstance(res, Exception):
-                    errors.append(f"{s}: {str(res)}")
+                    errors.append(str(res))
                 elif isinstance(res, list):
                     results.extend(res)
             
-            # If all external failed and no results, fallback to demo provider
-            if not results and errors:
-                logger.info("External providers failed, falling back to demo mode.")
-                demo_results = await self.providers["demo"].search(req.query, req.page, req.limit, req.rating)
-                results.extend(demo_results)
-                errors.append("Внимание: внешние API недоступны, показаны демонстрационные результаты.")
+            # If nothing returned, fallback to demo
+            if not results:
+                demo_res = await self.providers["demo"].search(query or "model", req.page, req.limit, req.rating)
+                results.extend(demo_res)
+                errors.append("Внимание: внешняя сеть недоступна, показаны демонстрационные результаты.")
         else:
             provider = self.providers.get(source)
             if not provider:
-                provider = self.providers["rule34"]
+                provider = self.providers["web"]
+            
+            # Use appropriate query
+            active_q = query if provider.name == "duckduckgo" else booru_query
             
             try:
-                results = await provider.search(req.query, req.page, req.limit, req.rating)
+                results = await provider.search(active_q, req.page, req.limit, req.rating)
             except Exception as e:
-                errors.append(f"Ошибка загрузки с {provider.display_name}: {str(e)}")
-                # Auto-fallback to demo for testing if offline
-                demo_results = await self.providers["demo"].search(req.query, req.page, req.limit, req.rating)
-                results.extend(demo_results)
-                errors.append("Внимание: сервис временно недоступен или заблокирован сетью. Загружен демонстрационный каталог.")
+                errors.append(f"Ошибка источника {provider.display_name}: {str(e)}")
+                # Try web search fallback if booru fails on cyrillic
+                if provider.name != "duckduckgo":
+                    try:
+                        web_results = await self.providers["web"].search(query, req.page, req.limit, req.rating)
+                        results.extend(web_results)
+                    except Exception:
+                        pass
+                
+                if not results:
+                    demo_res = await self.providers["demo"].search(query or "model", req.page, req.limit, req.rating)
+                    results.extend(demo_res)
+                    errors.append("Показаны демонстрационные результаты.")
 
         # Filter by minimum resolution
         if req.min_width > 0 or req.min_height > 0:
@@ -104,7 +128,7 @@ class ProviderManager:
         seen = set()
         deduped = []
         for p in results:
-            key = (p.source, p.id)
+            key = p.file_url or (p.source, p.id)
             if key not in seen:
                 seen.add(key)
                 deduped.append(p)
