@@ -38,38 +38,38 @@
 <body class="bg-dark-900 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-brand-500 selection:text-white">
 
   <!-- TOP NAVBAR -->
-  <header class="sticky top-0 z-40 bg-dark-800/90 backdrop-blur-md border-b border-slate-800 px-4 lg:px-8 py-3 transition-all">
+  <header class="sticky top-0 z-40 bg-dark-800/90 backdrop-blur-md border-b border-slate-800 px-4 lg:px-8 py-3 transition-all shadow-md">
     <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
       
       <!-- Logo -->
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 via-pink-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-brand-500/25">
           <i data-lucide="flame" class="w-6 h-6 text-white"></i>
         </div>
         <div>
-          <h1 class="text-lg font-bold bg-gradient-to-r from-brand-400 via-pink-300 to-indigo-400 bg-clip-text text-transparent">
+          <h1 class="text-lg font-extrabold bg-gradient-to-r from-brand-400 via-pink-300 to-indigo-400 bg-clip-text text-transparent">
             NSFW Image Hunter
           </h1>
-          <p class="text-xs text-slate-400">Windows Search & Batch Downloader</p>
+          <p class="text-[11px] text-slate-400">Поиск, выбор и пакетное скачивание артов</p>
         </div>
       </div>
 
       <!-- Search Box & Provider Selection -->
       <div class="flex-1 max-w-2xl min-w-[300px] relative">
-        <div class="flex items-center gap-2 bg-dark-900/80 border border-slate-700/80 rounded-xl p-1 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20 transition-all shadow-inner">
+        <div class="flex items-center gap-2 bg-dark-900/90 border border-slate-700/80 rounded-xl p-1.5 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20 transition-all shadow-inner">
           
           <!-- Source Dropdown -->
           <select id="sourceSelect" class="bg-dark-800 text-slate-200 text-xs font-semibold px-3 py-2 rounded-lg border border-slate-700 focus:outline-none focus:border-brand-500 cursor-pointer">
-            <option value="rule34">Rule34.xxx</option>
+            <option value="rule34">Rule34 (xxx)</option>
             <option value="gelbooru">Gelbooru</option>
             <option value="danbooru">Danbooru</option>
-            <option value="yandere">Yande.re</option>
-            <option value="konachan">Konachan</option>
-            <option value="realbooru">Realbooru</option>
-            <option value="waifu_im">Waifu.im</option>
-            <option value="safebooru">Safebooru</option>
+            <option value="yandere">Yande.re (4K)</option>
+            <option value="konachan">Konachan (Wallpapers)</option>
+            <option value="realbooru">Realbooru (Cosplay)</option>
+            <option value="waifu_im">Waifu.im (AI & Anime)</option>
+            <option value="safebooru">Safebooru (Safe)</option>
             <option value="all">✨ Все источники (All)</option>
-            <option value="demo">🎨 Demo / Offline Mode</option>
+            <option value="demo">🎨 Демо-режим (Offline)</option>
           </select>
 
           <!-- Input Search Query -->
@@ -101,8 +101,11 @@
         </div>
       </div>
 
-      <!-- Action / Settings Buttons -->
+      <!-- Action / Settings / Help Buttons -->
       <div class="flex items-center gap-2">
+        <button id="openHelpBtn" class="p-2.5 rounded-xl bg-dark-800 border border-slate-700 hover:border-slate-600 text-slate-300 hover:text-white transition-all" title="Справка по тегам">
+          <i data-lucide="help-circle" class="w-5 h-5"></i>
+        </button>
         <button id="openSettingsBtn" class="p-2.5 rounded-xl bg-dark-800 border border-slate-700 hover:border-slate-600 text-slate-300 hover:text-white transition-all" title="Настройки скачивания">
           <i data-lucide="settings" class="w-5 h-5"></i>
         </button>
@@ -110,22 +113,30 @@
 
     </div>
 
-    <!-- Quick Tags Chips Bar -->
+    <!-- Quick Tags Chips & Presets Bar -->
     <div class="max-w-7xl mx-auto mt-2.5 flex items-center gap-2 overflow-x-auto pb-1 text-xs no-scrollbar">
       <span class="text-slate-500 flex items-center gap-1 font-medium whitespace-nowrap">
-        <i data-lucide="tag" class="w-3.5 h-3.5"></i> Популярное:
+        <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i> Пресеты:
       </span>
+      <div class="flex items-center gap-1.5 flex-nowrap">
+        <button class="preset-btn" onclick="applyPreset('solo 1girl highres')">⭐ Популярное</button>
+        <button class="preset-btn" onclick="applyPreset('rating:explicit score:>500')">🔥 Топ рейтинг</button>
+        <button class="preset-btn" onclick="applyPreset('wallpaper 4k highres')">💎 4K Обои</button>
+        <button class="preset-btn" onclick="applyPreset('bikini beach summer')">👙 Бикини</button>
+        <button class="preset-btn" onclick="applyPreset('lingerie stockings')">💋 Lingerie</button>
+        <button class="preset-btn" onclick="applyPreset('cyberpunk neon 1girl')">🌆 Cyberpunk</button>
+      </div>
+
+      <div class="h-4 w-px bg-slate-800 mx-1"></div>
+
+      <span class="text-slate-500 font-medium whitespace-nowrap">Теги:</span>
       <div id="quickTags" class="flex items-center gap-1.5 flex-nowrap">
         <button class="tag-chip">+solo</button>
         <button class="tag-chip">+1girl</button>
         <button class="tag-chip">+highres</button>
         <button class="tag-chip">+waifu</button>
-        <button class="tag-chip">+bikini</button>
-        <button class="tag-chip">+lingerie</button>
         <button class="tag-chip">+ass</button>
         <button class="tag-chip">+breasts</button>
-        <button class="tag-chip">+wallpaper</button>
-        <button class="tag-chip">+cyberpunk</button>
         <button class="tag-chip">+maid</button>
         <button class="tag-chip">+school_uniform</button>
       </div>
@@ -139,7 +150,7 @@
       <!-- Selection Controls -->
       <div class="flex items-center flex-wrap gap-2">
         <button id="selectAllBtn" class="btn-secondary text-xs">
-          <i data-lucide="check-square" class="w-3.5 h-3.5 text-brand-400"></i> Выбрать все
+          <i data-lucide="check-square" class="w-3.5 h-3.5 text-brand-400"></i> Выбрать все на странице
         </button>
         <button id="deselectAllBtn" class="btn-secondary text-xs">
           <i data-lucide="square" class="w-3.5 h-3.5 text-slate-400"></i> Снять выбор
@@ -158,7 +169,7 @@
         </span>
       </div>
 
-      <!-- Download Action Buttons -->
+      <!-- Filters & Download Action Buttons -->
       <div class="flex items-center gap-2">
         <!-- Filter dropdowns -->
         <select id="aspectSelect" class="bg-dark-800 text-slate-300 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 focus:outline-none">
@@ -170,8 +181,8 @@
 
         <select id="sortSelect" class="bg-dark-800 text-slate-300 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 focus:outline-none">
           <option value="recent">🕒 Новые (Recent)</option>
-          <option value="score">⭐ По рейтингу (Score)</option>
-          <option value="random">🎲 Случайные</option>
+          <option value="score">⭐ По оценке (Score)</option>
+          <option value="random">🎲 Случайно</option>
         </select>
 
         <!-- Download Selected (Local Folder) -->
@@ -183,7 +194,7 @@
         <!-- Download Selected as ZIP -->
         <button id="downloadZipBtn" disabled class="btn-secondary text-xs flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-300 hover:text-white" title="Скачать выбранные архивом ZIP">
           <i data-lucide="archive" class="w-4 h-4"></i>
-          <span>ZIP</span>
+          <span>ZIP архив</span>
         </button>
       </div>
 
@@ -247,7 +258,7 @@
     <!-- Pagination Controls -->
     <div id="paginationBar" class="hidden mt-10 pt-6 border-t border-slate-800 flex items-center justify-between">
       <button id="prevPageBtn" class="btn-secondary text-xs flex items-center gap-1">
-        <i data-lucide="chevron-left" class="w-4 h-4"></i> Предыдущая
+        <i data-lucide="chevron-left" class="w-4 h-4"></i> Предыдущая страница
       </button>
 
       <div class="flex items-center gap-2">
@@ -256,7 +267,7 @@
       </div>
 
       <button id="nextPageBtn" class="btn-secondary text-xs flex items-center gap-1">
-        Следующая <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        Следующая страница <i data-lucide="chevron-right" class="w-4 h-4"></i>
       </button>
     </div>
 
@@ -336,6 +347,36 @@
 
       </div>
 
+    </div>
+  </div>
+
+  <!-- HELP MODAL -->
+  <div id="helpModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="w-full max-w-lg bg-dark-850 border border-slate-800 rounded-2xl p-6 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="help-circle" class="w-5 h-5 text-brand-400"></i> Справка по поиску и тегам
+        </h3>
+        <button id="closeHelpModalBtn" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
+        <p>Используйте теги через пробел. Чем точнее теги, тем лучше результаты:</p>
+        <div class="bg-dark-900 p-3 rounded-xl border border-slate-800 font-mono space-y-1.5 text-[11px]">
+          <div><span class="text-brand-400">solo 1girl</span> — одна девушка на арте</div>
+          <div><span class="text-brand-400">highres 4k</span> — высокое разрешение</div>
+          <div><span class="text-brand-400">-male -furry</span> — исключить мужчин или фурри (знак минус)</div>
+          <div><span class="text-brand-400">rating:explicit</span> — только контент для взрослых (18+)</div>
+          <div><span class="text-brand-400">score:>500</span> — только работы с высоким рейтингом</div>
+        </div>
+        <p class="text-slate-400 text-[11px]">💡 Совет: кликните по любому тегу в окне предпросмотра изображения, чтобы моментально запустить по нему поиск!</p>
+      </div>
+
+      <div class="mt-6 flex justify-end">
+        <button id="closeHelpBtn2" class="btn-primary text-xs">Понятно</button>
+      </div>
     </div>
   </div>
 

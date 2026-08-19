@@ -65,6 +65,25 @@
   color: #ffffff;
 }
 
+.preset-btn {
+  background-color: #1e2238;
+  border: 1px solid #374163;
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  color: #cbd5e1;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.preset-btn:hover {
+  background-color: #2b3252;
+  color: #f472b6;
+  border-color: #ec4899;
+  transform: translateY(-1px);
+}
+
 .tag-chip {
   background-color: #171926;
   border: 1px solid #2d3748;
@@ -98,7 +117,7 @@
 }
 
 /* Modal animation */
-#previewModal:not(.hidden) {
+#previewModal:not(.hidden), #settingsModal:not(.hidden), #helpModal:not(.hidden) {
   animation: fadeIn 0.2s ease-out forwards;
 }
 

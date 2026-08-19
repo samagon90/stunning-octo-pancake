@@ -5,7 +5,7 @@ const state = {
   currentPage: 1,
   currentQuery: '',
   currentSource: 'rule34',
-  currentRating: 'all',
+  currentRating: 'explicit',
   currentAspect: 'all',
   currentSort: 'recent',
   previewIndex: -1,
@@ -73,6 +73,12 @@ const modalSelectToggleText = document.getElementById('modalSelectToggleText');
 const modalDownloadDirectBtn = document.getElementById('modalDownloadDirectBtn');
 const modalSourceLink = document.getElementById('modalSourceLink');
 
+// Help Modal Elements
+const openHelpBtn = document.getElementById('openHelpBtn');
+const helpModal = document.getElementById('helpModal');
+const closeHelpModalBtn = document.getElementById('closeHelpModalBtn');
+const closeHelpBtn2 = document.getElementById('closeHelpBtn2');
+
 // Settings Elements
 const openSettingsBtn = document.getElementById('openSettingsBtn');
 const settingsModal = document.getElementById('settingsModal');
@@ -98,6 +104,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Default demo search to populate on start
   performSearch();
 });
+
+// Presets
+window.applyPreset = function(tags) {
+  searchInput.value = tags;
+  state.currentPage = 1;
+  performSearch();
+};
 
 // Settings Management
 async function fetchSettings() {
@@ -233,6 +246,11 @@ function setupEventListeners() {
   modalPrevBtn.addEventListener('click', () => navigateModal(-1));
   modalNextBtn.addEventListener('click', () => navigateModal(1));
   modalSelectToggleBtn.addEventListener('click', toggleModalPostSelection);
+
+  // Help modal
+  if (openHelpBtn) openHelpBtn.addEventListener('click', () => helpModal.classList.remove('hidden'));
+  if (closeHelpModalBtn) closeHelpModalBtn.addEventListener('click', () => helpModal.classList.add('hidden'));
+  if (closeHelpBtn2) closeHelpBtn2.addEventListener('click', () => helpModal.classList.add('hidden'));
 
   // Keyboard navigation for modal
   document.addEventListener('keydown', (e) => {
@@ -394,7 +412,7 @@ function renderGallery() {
           <label class="flex items-center cursor-pointer" onclick="event.stopPropagation()">
             <input 
               type="checkbox" 
-              class="w-4 h-4 rounded bg-dark-900 border-slate-700 text-brand-500 focus:ring-brand-500 rounded cursor-pointer" 
+              class="w-4 h-4 rounded bg-dark-900 border-slate-700 text-brand-500 focus:ring-brand-500 cursor-pointer" 
               ${isSelected ? 'checked' : ''}
               onchange="toggleSelectPost('${post.id}', this.checked)"
             />
@@ -412,7 +430,7 @@ function renderGallery() {
             alt="Thumbnail" 
             loading="lazy" 
             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&q=80';"
+            onerror="this.onerror=null; this.src='/api/proxy-image?url=fallback';"
           />
 
           <!-- Quick Preview Overlay Button on Hover -->
