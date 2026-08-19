@@ -3,7 +3,9 @@ import os
 import io
 import asyncio
 import json
+import webbrowser
 import urllib.request
+import urllib.parse
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -11,7 +13,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLineEdit, QPushButton, QComboBox, QLabel, QScrollArea, QGridLayout,
     QCheckBox, QFileDialog, QProgressBar, QDialog, QMessageBox, QFrame,
-    QSplitter, QSpinBox, QSizePolicy, QCompleter
+    QSplitter, QSpinBox, QSizePolicy, QCompleter, QTabWidget
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QRunnable, QThreadPool, QStringListModel
 from PyQt6.QtGui import QPixmap, QImage, QIcon, QFont, QColor, QPalette, QCursor
@@ -21,6 +23,7 @@ from core.providers.manager import ProviderManager
 from core.downloader import DownloadManager
 from core.tag_suggest import POPULAR_TAGS, suggest_tags
 from core.settings import load_settings, save_settings
+from core.scraper_engine import extract_images_from_url
 
 # Modern Dark Theme Stylesheet
 DARK_STYLESHEET = """
@@ -43,6 +46,12 @@ QFrame#ToolbarFrame {
     padding: 6px 16px;
 }
 
+QFrame#GrabberFrame {
+    background-color: #1a1528;
+    border-bottom: 1px solid #ec4899;
+    padding: 6px 16px;
+}
+
 QFrame#FooterFrame {
     background-color: #171925;
     border-top: 1px solid #2d3748;
@@ -59,20 +68,11 @@ QLabel#AppTitle {
     color: #ec4899;
 }
 
-QLabel#Badge {
-    background-color: #2b2f45;
-    color: #a5b4fc;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 11px;
-    font-weight: bold;
-}
-
 QLineEdit {
     background-color: #1e2233;
     border: 1px solid #334155;
     border-radius: 8px;
-    padding: 8px 12px;
+    padding: 7px 12px;
     color: #f8fafc;
     font-size: 13px;
     selection-background-color: #ec4899;
@@ -89,16 +89,7 @@ QComboBox {
     border-radius: 8px;
     padding: 6px 12px;
     color: #f8fafc;
-    min-width: 110px;
-}
-
-QComboBox:hover {
-    border-color: #475569;
-}
-
-QComboBox::drop-down {
-    border: none;
-    width: 20px;
+    min-width: 140px;
 }
 
 QComboBox QAbstractItemView {
@@ -106,25 +97,20 @@ QComboBox QAbstractItemView {
     color: #f8fafc;
     selection-background-color: #ec4899;
     border: 1px solid #334155;
-    outline: none;
 }
 
 QPushButton {
     background-color: #282e44;
     border: 1px solid #3b4461;
     border-radius: 8px;
-    padding: 7px 16px;
+    padding: 6px 14px;
     color: #f1f5f9;
     font-weight: 600;
 }
 
 QPushButton:hover {
     background-color: #373f5c;
-    border-color: #6366f1;
-}
-
-QPushButton:pressed {
-    background-color: #1e2233;
+    border-color: #ec4899;
 }
 
 QPushButton#PrimaryBtn {
@@ -136,7 +122,6 @@ QPushButton#PrimaryBtn {
 
 QPushButton#PrimaryBtn:hover {
     background-color: #db2777;
-    border-color: #f472b6;
 }
 
 QPushButton#SuccessBtn {
@@ -150,14 +135,15 @@ QPushButton#SuccessBtn:hover {
     background-color: #059669;
 }
 
-QPushButton#DangerBtn {
-    background-color: #ef4444;
-    border: 1px solid #f87171;
+QPushButton#GrabBtn {
+    background-color: #8b5cf6;
+    border: 1px solid #a78bfa;
     color: #ffffff;
+    font-weight: bold;
 }
 
-QPushButton#DangerBtn:hover {
-    background-color: #dc2626;
+QPushButton#GrabBtn:hover {
+    background-color: #7c3aed;
 }
 
 QPushButton#TagChip {
@@ -187,7 +173,6 @@ QProgressBar {
     text-align: center;
     color: #ffffff;
     font-weight: bold;
-    font-size: 11px;
 }
 
 QProgressBar::chunk {
@@ -197,7 +182,6 @@ QProgressBar::chunk {
 
 QCheckBox {
     color: #cbd5e1;
-    spacing: 8px;
 }
 
 QCheckBox::indicator {
@@ -301,6 +285,24 @@ class SearchWorker(QThread):
         except Exception as e:
             self.error.emit(str(e))
 
+class UrlGrabWorker(QThread):
+    finished = pyqtSignal(list)
+    error = pyqtSignal(str)
+
+    def __init__(self, url: str):
+        super().__init__()
+        self.url = url
+
+    def run(self):
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            posts = loop.run_until_complete(extract_images_from_url(self.url))
+            loop.close()
+            self.finished.emit([p.to_dict() for p in posts])
+        except Exception as e:
+            self.error.emit(str(e))
+
 class DownloadWorker(QThread):
     progress = pyqtSignal(dict)
     finished = pyqtSignal(dict)
@@ -353,7 +355,7 @@ class ImageCardWidget(QFrame):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
 
-        # Top Bar: Checkbox & Rating
+        # Top Bar: Checkbox & Source
         top_bar = QHBoxLayout()
         top_bar.setContentsMargins(0, 0, 0, 0)
         
@@ -363,10 +365,9 @@ class ImageCardWidget(QFrame):
 
         top_bar.addStretch()
 
-        rating = str(post.get("rating", "nsfw")).upper()
-        rating_color = "#ef4444" if "EXP" in rating else "#f59e0b" if "QUEST" in rating else "#10b981"
-        self.rating_lbl = QLabel(rating[:4])
-        self.rating_lbl.setStyleSheet(f"background-color: {rating_color}22; color: {rating_color}; border: 1px solid {rating_color}66; border-radius: 4px; padding: 1px 5px; font-size: 10px; font-weight: bold;")
+        source_name = str(post.get("source", "WEB"))
+        self.rating_lbl = QLabel(source_name[:12])
+        self.rating_lbl.setStyleSheet("background-color: #ec489922; color: #ec4899; border: 1px solid #ec489966; border-radius: 4px; padding: 1px 5px; font-size: 10px; font-weight: bold;")
         top_bar.addWidget(self.rating_lbl)
 
         layout.addLayout(top_bar)
@@ -391,7 +392,7 @@ class ImageCardWidget(QFrame):
 
         info_bar.addStretch()
 
-        score = post.get("score", 0)
+        score = post.get("score", 950)
         score_lbl = QLabel(f"★ {score}")
         score_lbl.setStyleSheet("color: #fbbf24; font-size: 11px; font-weight: bold;")
         info_bar.addWidget(score_lbl)
@@ -402,7 +403,7 @@ class ImageCardWidget(QFrame):
         btn_bar = QHBoxLayout()
         btn_bar.setContentsMargins(0, 0, 0, 0)
         
-        self.preview_btn = QPushButton("🔍 Просмотр")
+        self.preview_btn = QPushButton("🔍 Просмотр оригинала")
         self.preview_btn.setFixedHeight(26)
         self.preview_btn.setStyleSheet("font-size: 11px; padding: 2px 8px;")
         self.preview_btn.clicked.connect(lambda: self.on_preview(self.post))
@@ -444,7 +445,7 @@ class PreviewDialog(QDialog):
     def __init__(self, post: Dict[str, Any], parent=None):
         super().__init__(parent)
         self.post = post
-        self.setWindowTitle(f"Просмотр изображения #{post.get('id')} - {post.get('source')}")
+        self.setWindowTitle(f"Просмотр изображения - {post.get('source')}")
         self.resize(950, 750)
         self.setStyleSheet(DARK_STYLESHEET)
 
@@ -466,21 +467,15 @@ class PreviewDialog(QDialog):
         info_panel = QVBoxLayout()
         info_panel.setSpacing(12)
 
-        title = QLabel(f"Post ID: {post.get('id')}")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #f472b6;")
+        title = QLabel(f"Источник: {post.get('source')}")
+        title.setStyleSheet("font-size: 15px; font-weight: bold; color: #f472b6;")
         info_panel.addWidget(title)
-
-        source_lbl = QLabel(f"Источник: {post.get('source').upper()}")
-        info_panel.addWidget(source_lbl)
 
         res_lbl = QLabel(f"Разрешение: {post.get('width')} x {post.get('height')}")
         info_panel.addWidget(res_lbl)
 
         rating_lbl = QLabel(f"Рейтинг: {post.get('rating').upper()}")
         info_panel.addWidget(rating_lbl)
-
-        score_lbl = QLabel(f"Оценка / Рейтинг: ★ {post.get('score')}")
-        info_panel.addWidget(score_lbl)
 
         # Tags area
         tags_title = QLabel("Теги:")
@@ -489,7 +484,7 @@ class PreviewDialog(QDialog):
 
         tags_scroll = QScrollArea()
         tags_scroll.setWidgetResizable(True)
-        tags_scroll.setFixedHeight(220)
+        tags_scroll.setFixedHeight(200)
         tags_container = QWidget()
         tags_layout = QVBoxLayout(tags_container)
         tags_layout.setContentsMargins(4, 4, 4, 4)
@@ -505,7 +500,7 @@ class PreviewDialog(QDialog):
 
         info_panel.addStretch()
 
-        download_btn = QPushButton("💾 Сохранить оригинал")
+        download_btn = QPushButton("💾 Сохранить этот оригинал")
         download_btn.setObjectName("PrimaryBtn")
         download_btn.setFixedHeight(38)
         download_btn.clicked.connect(self._save_single)
@@ -518,7 +513,6 @@ class PreviewDialog(QDialog):
 
         layout.addLayout(info_panel, 1)
 
-        # Start async full image load
         self._load_full_image()
 
     def _load_full_image(self):
@@ -539,7 +533,7 @@ class PreviewDialog(QDialog):
         save_path, _ = QFileDialog.getSaveFileName(
             self,
             "Сохранить изображение",
-            f"{self.post.get('source')}_{self.post.get('id')}.{self.post.get('file_ext', 'jpg')}",
+            f"photo_{self.post.get('id')}.{self.post.get('file_ext', 'jpg')}",
             "Images (*.png *.jpg *.jpeg *.webp *.gif)"
         )
         if save_path:
@@ -603,7 +597,6 @@ class MainWindow(QMainWindow):
         self.source_combo = QComboBox()
         for p in self.provider_manager.get_providers_list():
             self.source_combo.addItem(p["name"], p["id"])
-        self.source_combo.addItem("✨ Все источники (All)", "all")
         header_layout.addWidget(self.source_combo)
 
         # Rating Filter
@@ -616,14 +609,9 @@ class MainWindow(QMainWindow):
 
         # Search Query Input
         self.search_input = QLineEdit()
+        self.search_input.setText("Милена Лисицына")
         self.search_input.setPlaceholderText("Введите имя модели или теги (например: Милена Лисицына, solo bikini)...")
         self.search_input.returnPressed.connect(self.start_search)
-        
-        # Tag Autocomplete
-        completer = QCompleter(POPULAR_TAGS, self)
-        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        self.search_input.setCompleter(completer)
         header_layout.addWidget(self.search_input, 2)
 
         # Search Button
@@ -634,45 +622,41 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(header)
 
-        # 2. Quick Tags & Filters Bar
-        sub_bar = QFrame()
-        sub_bar.setObjectName("ToolbarFrame")
-        sub_layout = QHBoxLayout(sub_bar)
-        sub_layout.setContentsMargins(12, 6, 12, 6)
-        sub_layout.setSpacing(8)
+        # 2. URL Grabber / Browser Mode Frame
+        grab_frame = QFrame()
+        grab_frame.setObjectName("GrabberFrame")
+        gf_layout = QHBoxLayout(grab_frame)
+        gf_layout.setContentsMargins(12, 6, 12, 6)
+        gf_layout.setSpacing(8)
 
-        quick_label = QLabel("Популярные теги:")
-        quick_label.setStyleSheet("color: #64748b; font-size: 11px; font-weight: bold;")
-        sub_layout.addWidget(quick_label)
+        grab_lbl = QLabel("🌐 Захват по ссылке:")
+        grab_lbl.setStyleSheet("color: #a78bfa; font-weight: bold; font-size: 12px;")
+        gf_layout.addWidget(grab_lbl)
 
-        sample_tags = ["solo", "1girl", "highres", "waifu", "bikini", "lingerie", "ass", "breasts", "wallpaper", "cyberpunk"]
-        for tag in sample_tags:
-            btn = QPushButton(f"+{tag}")
-            btn.setObjectName("TagChip")
-            btn.clicked.connect(lambda _, t=tag: self._add_tag_to_search(t))
-            sub_layout.addWidget(btn)
+        self.url_input = QLineEdit()
+        self.url_input.setPlaceholderText("Вставьте ссылку на страницу Яндекс/Bing/EroMe/Coomer/Альбом...")
+        self.url_input.returnPressed.connect(self.start_url_grab)
+        gf_layout.addWidget(self.url_input, 2)
 
-        sub_layout.addStretch()
+        self.grab_btn = QPushButton("⚡ Захватить все фото со страницы")
+        self.grab_btn.setObjectName("GrabBtn")
+        self.grab_btn.clicked.connect(self.start_url_grab)
+        gf_layout.addWidget(self.grab_btn)
 
-        # Orientation filter
-        self.aspect_combo = QComboBox()
-        self.aspect_combo.addItem("📐 Любая ориентация", "all")
-        self.aspect_combo.addItem("🖼️ Горизонтальная (Обои)", "landscape")
-        self.aspect_combo.addItem("📱 Вертикальная (Портрет)", "portrait")
-        self.aspect_combo.addItem("⏹️ Квадратная", "square")
-        self.aspect_combo.currentIndexChanged.connect(self.start_search)
-        sub_layout.addWidget(self.aspect_combo)
+        # Quick Browser Buttons
+        btn_yandex = QPushButton("🇷🇺 Открыть Яндекс")
+        btn_yandex.clicked.connect(lambda: self._open_browser_search("yandex"))
+        gf_layout.addWidget(btn_yandex)
 
-        # Min resolution filter
-        self.res_combo = QComboBox()
-        self.res_combo.addItem("⚡ Любое разрешение", 0)
-        self.res_combo.addItem("💎 >= 1080p (FHD)", 1080)
-        self.res_combo.addItem("🌟 >= 1440p (2K)", 1440)
-        self.res_combo.addItem("👑 >= 2160p (4K)", 2160)
-        self.res_combo.currentIndexChanged.connect(self.start_search)
-        sub_layout.addWidget(self.res_combo)
+        btn_bing = QPushButton("🌐 Открыть Bing 18+")
+        btn_bing.clicked.connect(lambda: self._open_browser_search("bing"))
+        gf_layout.addWidget(btn_bing)
 
-        main_layout.addWidget(sub_bar)
+        btn_erome = QPushButton("🔥 Открыть EroMe")
+        btn_erome.clicked.connect(lambda: self._open_browser_search("erome"))
+        gf_layout.addWidget(btn_erome)
+
+        main_layout.addWidget(grab_frame)
 
         # 3. Action Toolbar (Selection Controls & Download Trigger)
         toolbar = QFrame()
@@ -738,7 +722,7 @@ class MainWindow(QMainWindow):
         self.scroll_area.setWidget(self.gallery_widget)
         main_layout.addWidget(self.scroll_area, 1)
 
-        # 5. Footer & Pagination & Progress Frame
+        # 5. Footer Frame
         footer = QFrame()
         footer.setObjectName("FooterFrame")
         footer_layout = QVBoxLayout(footer)
@@ -761,13 +745,13 @@ class MainWindow(QMainWindow):
 
         page_row.addStretch()
 
-        self.status_lbl = QLabel("Готов к поиску. Введите теги и нажмите 'Найти'.")
+        self.status_lbl = QLabel("Готов к работе. Введите имя модели или вставьте ссылку для захвата фото.")
         self.status_lbl.setStyleSheet("color: #94a3b8;")
         page_row.addWidget(self.status_lbl)
 
         footer_layout.addLayout(page_row)
 
-        # Progress bar row (hidden by default)
+        # Progress bar row
         self.progress_row = QHBoxLayout()
         self.progress_bar = QProgressBar()
         self.progress_bar.setFixedHeight(18)
@@ -779,7 +763,6 @@ class MainWindow(QMainWindow):
         self.progress_row.addWidget(self.progress_status_lbl, 1)
 
         self.cancel_dl_btn = QPushButton("Отмена")
-        self.cancel_dl_btn.setObjectName("DangerBtn")
         self.cancel_dl_btn.setFixedHeight(24)
         self.cancel_dl_btn.clicked.connect(self._cancel_download)
         self.progress_row.addWidget(self.cancel_dl_btn)
@@ -788,11 +771,19 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(footer)
 
-    def _add_tag_to_search(self, tag: str):
-        curr = self.search_input.text().strip()
-        if tag not in curr.split():
-            self.search_input.setText(f"{curr} {tag}".strip())
-        self.start_search()
+    def _open_browser_search(self, engine: str):
+        q = urllib.parse.quote_plus(self.search_input.text().strip() or "Милена Лисицына")
+        target_url = ""
+        if engine == "yandex":
+            target_url = f"https://yandex.ru/images/search?text={q}"
+        elif engine == "bing":
+            target_url = f"https://www.bing.com/images/search?q={q}&adlt=off"
+        elif engine == "erome":
+            target_url = f"https://www.erome.com/search?q={q}"
+
+        self.url_input.setText(target_url)
+        webbrowser.open(target_url)
+        self.status_lbl.setText("Страница открыта в браузере. Скопируйте ссылку на альбом/выдачу и нажмите 'Захватить'.")
 
     def _choose_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "Выберите папку для сохранения картинок", self.folder_input.text())
@@ -801,17 +792,44 @@ class MainWindow(QMainWindow):
             self.settings["download_dir"] = folder
             save_settings(self.settings)
 
+    def start_url_grab(self):
+        url = self.url_input.text().strip()
+        if not url:
+            QMessageBox.warning(self, "Внимание", "Пожалуйста, вставьте ссылку в поле захвата!")
+            return
+
+        self.grab_btn.setEnabled(False)
+        self.status_lbl.setText("Захват всех полноразмерных картинок со страницы...")
+        self._clear_gallery()
+
+        self.grab_worker = UrlGrabWorker(url)
+        self.grab_worker.finished.connect(self._on_grab_finished)
+        self.grab_worker.error.connect(self._on_grab_error)
+        self.grab_worker.start()
+
+    def _on_grab_finished(self, posts: list):
+        self.grab_btn.setEnabled(True)
+        self.current_posts = posts
+        total = len(posts)
+        if total == 0:
+            self.status_lbl.setText("На указанной странице не найдено прямых картинок.")
+            QMessageBox.information(self, "Захват", "На странице не найдено прямых картинок. Попробуйте скопировать ссылку на конкретный альбом или результаты поиска.")
+        else:
+            self.status_lbl.setText(f"Успешно захвачено {total} полноразмерных фото со страницы!")
+            self._render_cards()
+
+    def _on_grab_error(self, err: str):
+        self.grab_btn.setEnabled(True)
+        self.status_lbl.setText(f"Ошибка захвата: {err}")
+        QMessageBox.warning(self, "Ошибка захвата", f"Не удалось захватить фото: {err}")
+
     def start_search(self):
         query = self.search_input.text().strip()
         source = self.source_combo.currentData()
         rating = self.rating_combo.currentData()
-        aspect = self.aspect_combo.currentData()
-        min_res = self.res_combo.currentData()
 
         self.search_btn.setEnabled(False)
         self.status_lbl.setText("Поиск изображений... Пожалуйста, подождите.")
-
-        # Clear existing cards
         self._clear_gallery()
 
         req = SearchRequest(
@@ -819,10 +837,7 @@ class MainWindow(QMainWindow):
             source=source,
             page=self.current_page,
             limit=40,
-            rating=rating,
-            aspect_ratio=aspect,
-            min_width=min_res,
-            min_height=min_res
+            rating=rating
         )
 
         self.search_worker = SearchWorker(self.provider_manager, req)
@@ -837,8 +852,8 @@ class MainWindow(QMainWindow):
         self.page_lbl.setText(f"Страница {self.current_page}")
 
         errors = result.get("errors", [])
-        if errors:
-            self.status_lbl.setText(f"Найдено: {total} картинок. ({errors[0]})")
+        if errors and total == 0:
+            self.status_lbl.setText(f"{errors[0]}")
         else:
             self.status_lbl.setText(f"Найдено: {total} картинок по запросу '{result.get('query')}'.")
 
@@ -847,7 +862,6 @@ class MainWindow(QMainWindow):
     def _on_search_error(self, err: str):
         self.search_btn.setEnabled(True)
         self.status_lbl.setText(f"Ошибка поиска: {err}")
-        QMessageBox.warning(self, "Ошибка поиска", f"Не удалось выполнить поиск: {err}")
 
     def _clear_gallery(self):
         for i in reversed(range(self.gallery_grid.count())):
@@ -858,14 +872,13 @@ class MainWindow(QMainWindow):
 
     def _render_cards(self):
         self._clear_gallery()
-        columns = 5  # Responsive columns
+        columns = 5
         
         for idx, post in enumerate(self.current_posts):
             card = ImageCardWidget(post, self._on_card_select, self._open_preview)
             post_id = str(post.get("id"))
             self.card_widgets[post_id] = card
             
-            # Check if was previously selected
             if post_id in self.selected_posts:
                 card.toggle_selected(True)
 
@@ -873,7 +886,6 @@ class MainWindow(QMainWindow):
             col = idx % columns
             self.gallery_grid.addWidget(card, row, col)
 
-            # Request thumbnail async
             self.thread_pool.start(ImageLoaderSignals(post, self._on_thumbnail_loaded))
 
         self._update_selection_counter()
@@ -959,7 +971,7 @@ class MainWindow(QMainWindow):
         dest_dir = self.folder_input.text().strip() or "./downloads"
         settings = dict(self.settings)
         settings["download_dir"] = dest_dir
-        settings["subfolder_name"] = self.search_input.text().strip() or "general"
+        settings["subfolder_name"] = self.search_input.text().strip() or "models"
 
         posts_to_dl = list(self.selected_posts.values())
         
@@ -989,7 +1001,7 @@ class MainWindow(QMainWindow):
         skipped = stats.get("skipped", 0)
         dest = self.folder_input.text()
 
-        msg = f"Загрузка завершена!\n\nУспешно скачано: {completed}\nПропущено дубликатов: {skipped}\nОшибок: {failed}\n\nПапка: {dest}"
+        msg = f"Загрузка завершена!\n\nУспешно скачано: {completed}\nПропущено: {skipped}\nОшибок: {failed}\n\nПапка: {dest}"
         QMessageBox.information(self, "Загрузка завершена", msg)
         self.progress_status_lbl.setText(f"Завершено. Скачано: {completed} файлов.")
 

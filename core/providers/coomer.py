@@ -22,12 +22,18 @@ class CoomerModelProvider(BaseProvider):
             latin = transliterate(query)
             if latin != query:
                 queries.append(latin)
+                # Also add individual words if name + surname
+                words = latin.split()
+                if len(words) >= 2:
+                    queries.extend(words)
 
         posts: List[Post] = []
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
             "Accept": "application/json"
         }
+
+        seen_paths = set()
 
         async with aiohttp.ClientSession(headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as session:
             for q in queries:
@@ -51,7 +57,6 @@ class CoomerModelProvider(BaseProvider):
                                     service = item.get("service", "onlyfans")
                                     user = item.get("user", "")
                                     
-                                    # Collect files from item
                                     files_to_add = []
                                     main_file = item.get("file", {})
                                     if main_file and isinstance(main_file, dict) and main_file.get("path"):
@@ -62,6 +67,10 @@ class CoomerModelProvider(BaseProvider):
                                             files_to_add.append(att.get("path"))
                                     
                                     for path in files_to_add:
+                                        if path in seen_paths:
+                                            continue
+                                        seen_paths.add(path)
+
                                         if not any(path.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif", ".mp4"]):
                                             continue
                                         
