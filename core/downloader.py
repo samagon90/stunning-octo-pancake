@@ -7,6 +7,7 @@ import aiohttp
 import logging
 from typing import Dict, List, Any, Optional, Callable
 from pathlib import Path
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +30,11 @@ def get_referer_for_url(url: str) -> str:
         return "https://coomer.su/"
     elif "erome.com" in url:
         return "https://www.erome.com/"
+    elif "bing.com" in url or "bing.net" in url:
+        return "https://www.bing.com/"
+    elif "yandex.ru" in url or "yandex.net" in url:
+        return "https://yandex.ru/"
     try:
-        from urllib.parse import urlparse
         parsed = urlparse(url)
         return f"{parsed.scheme}://{parsed.netloc}/"
     except Exception:
@@ -38,7 +42,6 @@ def get_referer_for_url(url: str) -> str:
 
 def sanitize_filename(name: str, max_length: int = 120) -> str:
     """Sanitize string to be valid Windows filename."""
-    # Replace illegal characters: \ / : * ? " < > |
     cleaned = re.sub(r'[\\/*?:"<>|]', '_', name)
     cleaned = re.sub(r'[\r\n\t]+', ' ', cleaned).strip()
     if len(cleaned) > max_length:
@@ -60,7 +63,7 @@ class DownloadManager:
             "downloaded_bytes": 0,
             "speed_kbps": 0.0,
             "errors": [],
-            "status": "idle"  # idle, downloading, completed, cancelled, error
+            "status": "idle"
         }
 
     def get_stats(self) -> Dict[str, Any]:
@@ -77,7 +80,7 @@ class DownloadManager:
         
         tags = post.get("tags", [])
         if isinstance(tags, list):
-            tags_str = "_".join(tags[:5])
+            tags_str = "_".join(tags[:4])
         else:
             tags_str = str(tags)
         
@@ -107,7 +110,6 @@ class DownloadManager:
         self.is_running = True
         self.should_cancel = False
         
-        # Prepare target directory
         target_dir = Path(destination_dir)
         if create_subfolders and subfolder_name:
             safe_sub = sanitize_filename(subfolder_name, 50)
@@ -129,13 +131,9 @@ class DownloadManager:
             "status": "downloading"
         }
 
-        semaphore = asyncio.Semaphore(max(1, min(threads, 10)))
+        semaphore = asyncio.Semaphore(max(1, min(threads, 8)))
         start_time = time.time()
         downloaded_bytes_session = 0
-
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 NSFWDownloader/1.0"
-        }
 
         async def download_one(post: Dict[str, Any], session: aiohttp.ClientSession):
             nonlocal downloaded_bytes_session
@@ -148,11 +146,11 @@ class DownloadManager:
 
                 filename = self.format_filename(post, naming_pattern)
                 filepath = target_dir / filename
-                file_url = post.get("file_url") or post.get("sample_url")
+                file_url = post.get("file_url") or post.get("sample_url") or post.get("preview_url")
 
                 self.current_stats["current_file"] = filename
 
-                if skip_existing and filepath.exists() and filepath.stat().st_size > 0:
+                if skip_existing and filepath.exists() and filepath.stat().st_size > 1024:
                     self.current_stats["skipped"] += 1
                     self._update_progress(progress_callback, start_time, downloaded_bytes_session)
                     return
@@ -163,37 +161,58 @@ class DownloadManager:
                     self._update_progress(progress_callback, start_time, downloaded_bytes_session)
                     return
 
-                try:
-                    custom_headers = {
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-                        "Referer": get_referer_for_url(file_url)
-                    }
-                    async with session.get(file_url, headers=custom_headers, timeout=aiohttp.ClientTimeout(total=30)) as response:
-                        if response.status == 200:
-                            content = await response.read()
-                            with open(filepath, "wb") as f:
-                                f.write(content)
-                            
-                            file_size = len(content)
-                            downloaded_bytes_session += file_size
-                            self.current_stats["downloaded_bytes"] += file_size
-                            self.current_stats["completed"] += 1
+                # Retry up to 3 times on connection error / timeout
+                success = False
+                for attempt in range(1, 4):
+                    if self.should_cancel:
+                        break
+                    
+                    try:
+                        custom_headers = {
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+                            "Referer": get_referer_for_url(file_url),
+                            "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+                        }
+                        
+                        async with session.get(file_url, headers=custom_headers, timeout=aiohttp.ClientTimeout(total=45)) as response:
+                            if response.status == 200:
+                                with open(filepath, "wb") as f:
+                                    async for chunk in response.content.iter_chunked(65536):
+                                        f.write(chunk)
+                                
+                                file_size = filepath.stat().st_size if filepath.exists() else 0
+                                if file_size > 500:
+                                    downloaded_bytes_session += file_size
+                                    self.current_stats["downloaded_bytes"] += file_size
+                                    self.current_stats["completed"] += 1
+                                    success = True
 
-                            if save_metadata:
-                                meta_path = target_dir / f"{filepath.stem}_info.json"
-                                with open(meta_path, "w", encoding="utf-8") as mf:
-                                    json.dump(post, mf, ensure_ascii=False, indent=2)
-                        else:
+                                    if save_metadata:
+                                        meta_path = target_dir / f"{filepath.stem}_info.json"
+                                        with open(meta_path, "w", encoding="utf-8") as mf:
+                                            json.dump(post, mf, ensure_ascii=False, indent=2)
+                                    break
+                                else:
+                                    # Too small or corrupt, retry
+                                    continue
+                            elif response.status in (403, 429) and attempt < 3:
+                                await asyncio.sleep(1.0)
+                                continue
+                    except Exception as e:
+                        if attempt == 3:
                             self.current_stats["failed"] += 1
-                            self.current_stats["errors"].append(f"HTTP {response.status} for {filename}")
-                except Exception as e:
-                    self.current_stats["failed"] += 1
-                    self.current_stats["errors"].append(f"Error downloading {filename}: {str(e)}")
+                            self.current_stats["errors"].append(f"Error {filename}: {str(e)}")
+                        else:
+                            await asyncio.sleep(0.8)
+
+                if not success and not self.should_cancel and filepath.exists() and filepath.stat().st_size <= 500:
+                    filepath.unlink(missing_ok=True)
 
                 self._update_progress(progress_callback, start_time, downloaded_bytes_session)
 
         try:
-            async with aiohttp.ClientSession(headers=headers) as session:
+            connector = aiohttp.TCPConnector(ssl=False, limit=20)
+            async with aiohttp.ClientSession(connector=connector) as session:
                 tasks = [download_one(p, session) for p in posts]
                 await asyncio.gather(*tasks)
         finally:

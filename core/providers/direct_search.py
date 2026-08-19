@@ -8,11 +8,12 @@ from core.models import Post
 
 logger = logging.getLogger(__name__)
 
-async def search_bing_direct(query: str, limit: int = 50) -> List[Post]:
-    """Search Bing Images using unescaped murl/turl parsing."""
+async def search_bing_direct(query: str, page: int = 1, limit: int = 50) -> List[Post]:
+    """Search Bing Images with proper pagination offset."""
     posts = []
     encoded_q = urllib.parse.quote_plus(query)
-    url = f"https://www.bing.com/images/async?q={encoded_q}&first=1&count={limit}&mmasync=1&adlt=off"
+    first_idx = (page - 1) * limit + 1
+    url = f"https://www.bing.com/images/async?q={encoded_q}&first={first_idx}&count={limit}&mmasync=1&adlt=off"
     
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
@@ -23,13 +24,13 @@ async def search_bing_direct(query: str, limit: int = 50) -> List[Post]:
     }
     
     try:
-        async with aiohttp.ClientSession(headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as session:
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector, headers=headers, timeout=aiohttp.ClientTimeout(total=20)) as session:
             async with session.get(url) as resp:
                 if resp.status == 200:
                     raw_text = await resp.text()
                     clean_text = html.unescape(raw_text)
                     
-                    # Match all murl (full images)
                     murls = re.findall(r'"murl"\s*:\s*"(https?://[^"]+)"', clean_text)
                     turls = re.findall(r'"turl"\s*:\s*"(https?://[^"]+)"', clean_text)
                     descs = re.findall(r'"desc"\s*:\s*"([^"]+)"', clean_text)
@@ -56,7 +57,7 @@ async def search_bing_direct(query: str, limit: int = 50) -> List[Post]:
                             rating="explicit",
                             score=950,
                             source_page_url=murl,
-                            created_at="bing"
+                            created_at=f"bing_p{page}"
                         )
                         posts.append(post)
                         if len(posts) >= limit:
@@ -66,11 +67,12 @@ async def search_bing_direct(query: str, limit: int = 50) -> List[Post]:
         
     return posts
 
-async def search_yahoo_direct(query: str, limit: int = 50) -> List[Post]:
-    """Search Yahoo Images using unescaped imgurl parsing."""
+async def search_yahoo_direct(query: str, page: int = 1, limit: int = 50) -> List[Post]:
+    """Search Yahoo Images with proper pagination offset."""
     posts = []
     encoded_q = urllib.parse.quote_plus(query)
-    url = f"https://images.search.yahoo.com/search/images?p={encoded_q}&b=1"
+    start_idx = (page - 1) * limit + 1
+    url = f"https://images.search.yahoo.com/search/images?p={encoded_q}&b={start_idx}"
     
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
@@ -79,7 +81,8 @@ async def search_yahoo_direct(query: str, limit: int = 50) -> List[Post]:
     }
     
     try:
-        async with aiohttp.ClientSession(headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as session:
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector, headers=headers, timeout=aiohttp.ClientTimeout(total=20)) as session:
             async with session.get(url) as resp:
                 if resp.status == 200:
                     raw_text = await resp.text()
@@ -111,7 +114,7 @@ async def search_yahoo_direct(query: str, limit: int = 50) -> List[Post]:
                             rating="explicit",
                             score=900,
                             source_page_url=img_url,
-                            created_at="yahoo"
+                            created_at=f"yahoo_p{page}"
                         )
                         posts.append(post)
                         if len(posts) >= limit:
@@ -121,11 +124,12 @@ async def search_yahoo_direct(query: str, limit: int = 50) -> List[Post]:
         
     return posts
 
-async def search_google_gbv(query: str, limit: int = 50) -> List[Post]:
-    """Search Google Images."""
+async def search_google_gbv(query: str, page: int = 1, limit: int = 50) -> List[Post]:
+    """Search Google Images with pagination."""
     posts = []
     encoded_q = urllib.parse.quote_plus(query)
-    url = f"https://www.google.com/search?q={encoded_q}&tbm=isch&gbv=1&hl=ru&gl=ru"
+    start_idx = (page - 1) * limit
+    url = f"https://www.google.com/search?q={encoded_q}&tbm=isch&gbv=1&hl=ru&gl=ru&start={start_idx}"
     
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
@@ -134,7 +138,8 @@ async def search_google_gbv(query: str, limit: int = 50) -> List[Post]:
     }
     
     try:
-        async with aiohttp.ClientSession(headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as session:
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector, headers=headers, timeout=aiohttp.ClientTimeout(total=20)) as session:
             async with session.get(url) as resp:
                 if resp.status == 200:
                     raw_text = await resp.text()
@@ -161,7 +166,7 @@ async def search_google_gbv(query: str, limit: int = 50) -> List[Post]:
                             rating="explicit",
                             score=960,
                             source_page_url=img_url,
-                            created_at="google"
+                            created_at=f"google_p{page}"
                         )
                         posts.append(post)
                         if len(posts) >= limit:
@@ -171,11 +176,12 @@ async def search_google_gbv(query: str, limit: int = 50) -> List[Post]:
         
     return posts
 
-async def search_yandex_touch(query: str, limit: int = 50) -> List[Post]:
-    """Search Yandex Images mobile/touch endpoint."""
+async def search_yandex_touch(query: str, page: int = 1, limit: int = 50) -> List[Post]:
+    """Search Yandex Images mobile/touch endpoint with pagination."""
     posts = []
     encoded_q = urllib.parse.quote_plus(query)
-    url = f"https://yandex.ru/images/touch/search?text={encoded_q}&nomisspell=1"
+    p_offset = page - 1
+    url = f"https://yandex.ru/images/touch/search?text={encoded_q}&p={p_offset}&nomisspell=1"
     
     headers = {
         "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
@@ -185,7 +191,8 @@ async def search_yandex_touch(query: str, limit: int = 50) -> List[Post]:
     }
     
     try:
-        async with aiohttp.ClientSession(headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as session:
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(connector=connector, headers=headers, timeout=aiohttp.ClientTimeout(total=20)) as session:
             async with session.get(url) as resp:
                 if resp.status == 200:
                     raw_text = await resp.text()
@@ -211,7 +218,7 @@ async def search_yandex_touch(query: str, limit: int = 50) -> List[Post]:
                             rating="explicit",
                             score=980,
                             source_page_url=img_url,
-                            created_at="yandex"
+                            created_at=f"yandex_p{page}"
                         )
                         posts.append(post)
                         if len(posts) >= limit:

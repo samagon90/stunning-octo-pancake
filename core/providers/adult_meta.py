@@ -32,10 +32,10 @@ class AdultMetaSearchProvider(BaseProvider):
 
         tasks = []
         for q in queries:
-            tasks.append(search_bing_direct(q, limit=30))
-            tasks.append(search_yahoo_direct(q, limit=25))
-            tasks.append(search_google_gbv(q, limit=25))
-            tasks.append(search_yandex_touch(q, limit=25))
+            tasks.append(search_bing_direct(q, page=page, limit=30))
+            tasks.append(search_yahoo_direct(q, page=page, limit=25))
+            tasks.append(search_google_gbv(q, page=page, limit=25))
+            tasks.append(search_yandex_touch(q, page=page, limit=25))
             tasks.append(self.coomer.search(q, page=page, limit=30, rating=rating))
             tasks.append(self.erome.search(q, page=page, limit=20, rating=rating))
             tasks.append(self.reddit.search(q, page=page, limit=20, rating=rating))
@@ -49,7 +49,7 @@ class AdultMetaSearchProvider(BaseProvider):
             elif isinstance(g, Exception):
                 logger.debug(f"Sub-provider error: {g}")
 
-        # Deduplicate
+        # Deduplicate by file_url
         seen = set()
         deduped = []
         for p in results:

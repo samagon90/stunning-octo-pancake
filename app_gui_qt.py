@@ -239,6 +239,12 @@ def get_referer_for_url(url: str) -> str:
     except Exception:
         return "https://google.com/"
 
+import ssl
+
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+
 class ImageLoaderSignals(QRunnable):
     def __init__(self, post: Dict[str, Any], callback):
         super().__init__()
@@ -249,22 +255,25 @@ class ImageLoaderSignals(QRunnable):
         url = self.post.get("preview_url") or self.post.get("sample_url") or self.post.get("file_url")
         if not url:
             return
-        try:
-            req = urllib.request.Request(
-                url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-                    "Referer": get_referer_for_url(url),
-                    "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
-                }
-            )
-            with urllib.request.urlopen(req, timeout=12) as response:
-                data = response.read()
-                image = QImage.fromData(data)
-                if not image.isNull():
-                    self.callback(self.post.get("id"), image)
-        except Exception:
-            pass
+        
+        for attempt in range(2):
+            try:
+                req = urllib.request.Request(
+                    url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+                        "Referer": get_referer_for_url(url),
+                        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+                    }
+                )
+                with urllib.request.urlopen(req, context=ssl_context, timeout=15) as response:
+                    data = response.read()
+                    image = QImage.fromData(data)
+                    if not image.isNull():
+                        self.callback(self.post.get("id"), image)
+                        break
+            except Exception:
+                pass
 
 class SearchWorker(QThread):
     finished = pyqtSignal(dict)
@@ -611,13 +620,13 @@ class MainWindow(QMainWindow):
         self.search_input = QLineEdit()
         self.search_input.setText("Милена Лисицына")
         self.search_input.setPlaceholderText("Введите имя модели или теги (например: Милена Лисицына, solo bikini)...")
-        self.search_input.returnPressed.connect(self.start_search)
+        self.search_input.returnPressed.connect(lambda: self.start_search(reset_page=True))
         header_layout.addWidget(self.search_input, 2)
 
         # Search Button
         self.search_btn = QPushButton("🔍 Найти")
         self.search_btn.setObjectName("PrimaryBtn")
-        self.search_btn.clicked.connect(self.start_search)
+        self.search_btn.clicked.connect(lambda: self.start_search(reset_page=True))
         header_layout.addWidget(self.search_btn)
 
         main_layout.addWidget(header)
@@ -823,13 +832,15 @@ class MainWindow(QMainWindow):
         self.status_lbl.setText(f"Ошибка захвата: {err}")
         QMessageBox.warning(self, "Ошибка захвата", f"Не удалось захватить фото: {err}")
 
-    def start_search(self):
+    def start_search(self, reset_page: bool = True):
+        if reset_page:
+            self.current_page = 1
         query = self.search_input.text().strip()
         source = self.source_combo.currentData()
         rating = self.rating_combo.currentData()
 
         self.search_btn.setEnabled(False)
-        self.status_lbl.setText("Поиск изображений... Пожалуйста, подождите.")
+        self.status_lbl.setText(f"Поиск изображений (стр. {self.current_page})... Пожалуйста, подождите.")
         self._clear_gallery()
 
         req = SearchRequest(
@@ -855,7 +866,7 @@ class MainWindow(QMainWindow):
         if errors and total == 0:
             self.status_lbl.setText(f"{errors[0]}")
         else:
-            self.status_lbl.setText(f"Найдено: {total} картинок по запросу '{result.get('query')}'.")
+            self.status_lbl.setText(f"Найдено: {total} картинок (стр. {self.current_page}) по запросу '{result.get('query')}'.")
 
         self._render_cards()
 
@@ -957,11 +968,11 @@ class MainWindow(QMainWindow):
     def _prev_page(self):
         if self.current_page > 1:
             self.current_page -= 1
-            self.start_search()
+            self.start_search(reset_page=False)
 
     def _next_page(self):
         self.current_page += 1
-        self.start_search()
+        self.start_search(reset_page=False)
 
     def start_download(self):
         if not self.selected_posts:
