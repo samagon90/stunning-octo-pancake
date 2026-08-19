@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NSFW Image Hunter & Downloader</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#fdf2f8',
+              100: '#fce7f3',
+              400: '#f472b6',
+              500: '#ec4899',
+              600: '#db2777',
+              700: '#be185d',
+            },
+            dark: {
+              800: '#171926',
+              850: '#131520',
+              900: '#0f111a',
+              950: '#0a0c12',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-dark-900 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-brand-500 selection:text-white">
+
+  <!-- TOP NAVBAR -->
+  <header class="sticky top-0 z-40 bg-dark-800/90 backdrop-blur-md border-b border-slate-800 px-4 lg:px-8 py-3 transition-all">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+      
+      <!-- Logo -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
+          <i data-lucide="flame" class="w-6 h-6 text-white"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold bg-gradient-to-r from-brand-400 via-pink-300 to-indigo-400 bg-clip-text text-transparent">
+            NSFW Image Hunter
+          </h1>
+          <p class="text-xs text-slate-400">Windows Search & Batch Downloader</p>
+        </div>
+      </div>
+
+      <!-- Search Box & Provider Selection -->
+      <div class="flex-1 max-w-2xl min-w-[300px] relative">
+        <div class="flex items-center gap-2 bg-dark-900/80 border border-slate-700/80 rounded-xl p-1 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20 transition-all shadow-inner">
+          
+          <!-- Source Dropdown -->
+          <select id="sourceSelect" class="bg-dark-800 text-slate-200 text-xs font-semibold px-3 py-2 rounded-lg border border-slate-700 focus:outline-none focus:border-brand-500 cursor-pointer">
+            <option value="rule34">Rule34.xxx</option>
+            <option value="gelbooru">Gelbooru</option>
+            <option value="danbooru">Danbooru</option>
+            <option value="yandere">Yande.re</option>
+            <option value="konachan">Konachan</option>
+            <option value="realbooru">Realbooru</option>
+            <option value="waifu_im">Waifu.im</option>
+            <option value="safebooru">Safebooru</option>
+            <option value="all">✨ Все источники (All)</option>
+            <option value="demo">🎨 Demo / Offline Mode</option>
+          </select>
+
+          <!-- Input Search Query -->
+          <div class="relative flex-1">
+            <input 
+              type="text" 
+              id="searchInput"
+              placeholder="Введите теги (например: solo 1girl highres bikini)..." 
+              class="w-full bg-transparent px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none"
+              autocomplete="off"
+            />
+            <!-- Autocomplete suggestions dropdown -->
+            <div id="autocompleteList" class="hidden absolute left-0 right-0 top-full mt-2 bg-dark-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 max-h-60 overflow-y-auto"></div>
+          </div>
+
+          <!-- Rating Filter Dropdown -->
+          <select id="ratingSelect" class="bg-dark-800 text-slate-300 text-xs px-2.5 py-2 rounded-lg border border-slate-700 focus:outline-none focus:border-brand-500 cursor-pointer">
+            <option value="all">🔞 Все рейтинги</option>
+            <option value="explicit" selected>🔴 Только NSFW (Explicit)</option>
+            <option value="questionable">🟡 Ecchi (Questionable)</option>
+            <option value="safe">🟢 Safe (General)</option>
+          </select>
+
+          <!-- Search Button -->
+          <button id="searchBtn" class="bg-brand-500 hover:bg-brand-600 text-white font-medium px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all shadow-md shadow-brand-500/25 active:scale-95">
+            <i data-lucide="search" class="w-4 h-4"></i>
+            <span class="hidden sm:inline text-xs font-semibold">Найти</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Action / Settings Buttons -->
+      <div class="flex items-center gap-2">
+        <button id="openSettingsBtn" class="p-2.5 rounded-xl bg-dark-800 border border-slate-700 hover:border-slate-600 text-slate-300 hover:text-white transition-all" title="Настройки скачивания">
+          <i data-lucide="settings" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Quick Tags Chips Bar -->
+    <div class="max-w-7xl mx-auto mt-2.5 flex items-center gap-2 overflow-x-auto pb-1 text-xs no-scrollbar">
+      <span class="text-slate-500 flex items-center gap-1 font-medium whitespace-nowrap">
+        <i data-lucide="tag" class="w-3.5 h-3.5"></i> Популярное:
+      </span>
+      <div id="quickTags" class="flex items-center gap-1.5 flex-nowrap">
+        <button class="tag-chip">+solo</button>
+        <button class="tag-chip">+1girl</button>
+        <button class="tag-chip">+highres</button>
+        <button class="tag-chip">+waifu</button>
+        <button class="tag-chip">+bikini</button>
+        <button class="tag-chip">+lingerie</button>
+        <button class="tag-chip">+ass</button>
+        <button class="tag-chip">+breasts</button>
+        <button class="tag-chip">+wallpaper</button>
+        <button class="tag-chip">+cyberpunk</button>
+        <button class="tag-chip">+maid</button>
+        <button class="tag-chip">+school_uniform</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- SECONDARY TOOLBAR: FILTERS & SELECTION -->
+  <div class="bg-dark-850 border-b border-slate-800 px-4 lg:px-8 py-2.5">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Selection Controls -->
+      <div class="flex items-center flex-wrap gap-2">
+        <button id="selectAllBtn" class="btn-secondary text-xs">
+          <i data-lucide="check-square" class="w-3.5 h-3.5 text-brand-400"></i> Выбрать все
+        </button>
+        <button id="deselectAllBtn" class="btn-secondary text-xs">
+          <i data-lucide="square" class="w-3.5 h-3.5 text-slate-400"></i> Снять выбор
+        </button>
+        <button id="invertSelectBtn" class="btn-secondary text-xs">
+          <i data-lucide="repeat" class="w-3.5 h-3.5 text-slate-400"></i> Инвертировать
+        </button>
+        <button id="selectHighResBtn" class="btn-secondary text-xs">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i> Только High-Res (>=1080p)
+        </button>
+
+        <div class="h-4 w-px bg-slate-700 mx-1"></div>
+
+        <span id="selectedCountBadge" class="px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-500/20 text-brand-400 border border-brand-500/30">
+          Выбрано: 0 картинок
+        </span>
+      </div>
+
+      <!-- Download Action Buttons -->
+      <div class="flex items-center gap-2">
+        <!-- Filter dropdowns -->
+        <select id="aspectSelect" class="bg-dark-800 text-slate-300 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 focus:outline-none">
+          <option value="all">📐 Любая ориентация</option>
+          <option value="landscape">🖼️ Горизонтальная (Обои)</option>
+          <option value="portrait">📱 Вертикальная (Портрет)</option>
+          <option value="square">⏹️ Квадрат</option>
+        </select>
+
+        <select id="sortSelect" class="bg-dark-800 text-slate-300 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 focus:outline-none">
+          <option value="recent">🕒 Новые (Recent)</option>
+          <option value="score">⭐ По рейтингу (Score)</option>
+          <option value="random">🎲 Случайные</option>
+        </select>
+
+        <!-- Download Selected (Local Folder) -->
+        <button id="downloadSelectedBtn" disabled class="btn-primary text-xs flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          <span>Скачать в папку (<span id="dlCountSpan">0</span>)</span>
+        </button>
+
+        <!-- Download Selected as ZIP -->
+        <button id="downloadZipBtn" disabled class="btn-secondary text-xs flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-300 hover:text-white" title="Скачать выбранные архивом ZIP">
+          <i data-lucide="archive" class="w-4 h-4"></i>
+          <span>ZIP</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT AREA -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6">
+    
+    <!-- Status & Notification Banner -->
+    <div id="statusBanner" class="hidden mb-6 p-4 rounded-xl border bg-dark-800 border-slate-700 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <i data-lucide="info" class="w-5 h-5 text-brand-400 shrink-0"></i>
+        <p id="statusBannerText" class="text-xs sm:text-sm text-slate-300"></p>
+      </div>
+      <button onclick="document.getElementById('statusBanner').classList.add('hidden')" class="text-slate-400 hover:text-white">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <!-- Active Download Progress Card -->
+    <div id="downloadProgressCard" class="hidden mb-6 p-4 rounded-2xl bg-gradient-to-r from-dark-800 to-dark-850 border border-brand-500/30 shadow-xl shadow-brand-500/5">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <div class="w-2.5 h-2.5 rounded-full bg-brand-500 animate-pulse"></div>
+          <span class="text-xs font-bold text-slate-200 uppercase tracking-wider">Загрузка файлов...</span>
+          <span id="dlSpeedText" class="text-xs text-brand-400 font-mono">0 KB/s</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <span id="dlProgressStats" class="text-xs text-slate-400 font-mono">0 / 0 файлов</span>
+          <button id="cancelDlBtn" class="text-xs text-rose-400 hover:text-rose-300 font-semibold px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20">Отмена</button>
+        </div>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="w-full bg-dark-900 rounded-full h-2.5 overflow-hidden border border-slate-800">
+        <div id="dlProgressBar" class="bg-gradient-to-r from-brand-500 to-indigo-500 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+      </div>
+      <p id="dlCurrentFile" class="text-[11px] text-slate-500 truncate mt-1.5 font-mono"></p>
+    </div>
+
+    <!-- Loading Skeleton -->
+    <div id="loadingGrid" class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      <!-- Skeletons generated by JS -->
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="py-20 text-center flex flex-col items-center justify-center">
+      <div class="w-16 h-16 rounded-2xl bg-dark-800 border border-slate-800 flex items-center justify-center mb-4 text-brand-400">
+        <i data-lucide="image" class="w-8 h-8"></i>
+      </div>
+      <h3 class="text-lg font-bold text-slate-200 mb-1">Начните поиск картинок</h3>
+      <p class="text-sm text-slate-400 max-w-md">Введите теги в поле поиска сверху, выберите источник (Rule34, Gelbooru, Waifu.im и др.) и нажмите «Найти».</p>
+    </div>
+
+    <!-- Image Gallery Grid -->
+    <div id="galleryGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      <!-- Cards rendered by JS -->
+    </div>
+
+    <!-- Pagination Controls -->
+    <div id="paginationBar" class="hidden mt-10 pt-6 border-t border-slate-800 flex items-center justify-between">
+      <button id="prevPageBtn" class="btn-secondary text-xs flex items-center gap-1">
+        <i data-lucide="chevron-left" class="w-4 h-4"></i> Предыдущая
+      </button>
+
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-slate-400 font-medium">Страница</span>
+        <span id="currentPageNum" class="px-3 py-1 bg-brand-500/10 border border-brand-500/30 text-brand-400 rounded-lg font-bold text-xs">1</span>
+      </div>
+
+      <button id="nextPageBtn" class="btn-secondary text-xs flex items-center gap-1">
+        Следующая <i data-lucide="chevron-right" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+  </main>
+
+  <!-- LIGHTBOX / FULL IMAGE MODAL -->
+  <div id="previewModal" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="relative w-full max-w-6xl max-h-[92vh] bg-dark-850 border border-slate-800 rounded-2xl shadow-2xl flex flex-col md:flex-row overflow-hidden">
+      
+      <!-- Close Button -->
+      <button id="closeModalBtn" class="absolute top-3 right-3 z-20 p-2 rounded-xl bg-dark-900/80 hover:bg-dark-900 text-slate-400 hover:text-white border border-slate-700 transition-all">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <!-- Left: Image Viewer Area -->
+      <div class="flex-1 bg-dark-950 flex items-center justify-center p-4 min-h-[360px] md:min-h-[600px] relative select-none">
+        <img id="modalImage" src="" alt="Full Preview" class="max-h-[82vh] max-w-full object-contain rounded-lg shadow-2xl transition-all" />
+        
+        <!-- Navigation arrows -->
+        <button id="modalPrevBtn" class="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-dark-900/70 hover:bg-dark-900 text-white border border-slate-700 transition-all">
+          <i data-lucide="chevron-left" class="w-6 h-6"></i>
+        </button>
+        <button id="modalNextBtn" class="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-dark-900/70 hover:bg-dark-900 text-white border border-slate-700 transition-all">
+          <i data-lucide="chevron-right" class="w-6 h-6"></i>
+        </button>
+      </div>
+
+      <!-- Right: Details Sidebar -->
+      <div class="w-full md:w-80 bg-dark-850 p-6 flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-800">
+        <div>
+          <!-- Header info -->
+          <div class="flex items-center justify-between mb-4">
+            <span id="modalSourceBadge" class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-slate-800 text-brand-400 border border-slate-700">Source</span>
+            <span id="modalRatingBadge" class="px-2 py-0.5 rounded text-xs font-semibold bg-rose-500/20 text-rose-400 border border-rose-500/30">NSFW</span>
+          </div>
+
+          <h3 id="modalPostTitle" class="text-base font-bold text-white mb-2">Post #12345</h3>
+
+          <div class="space-y-2 text-xs text-slate-400 mb-6 bg-dark-900 p-3 rounded-xl border border-slate-800">
+            <div class="flex justify-between">
+              <span>Разрешение:</span>
+              <span id="modalDimensions" class="font-mono text-slate-200">1920x1080</span>
+            </div>
+            <div class="flex justify-between">
+              <span>Оценка (Score):</span>
+              <span id="modalScore" class="font-mono text-amber-400 font-bold">★ 320</span>
+            </div>
+            <div class="flex justify-between">
+              <span>Формат:</span>
+              <span id="modalFormat" class="font-mono text-slate-200 uppercase">PNG</span>
+            </div>
+          </div>
+
+          <!-- Tags list -->
+          <h4 class="text-xs font-semibold text-slate-300 mb-2">Теги:</h4>
+          <div id="modalTagsContainer" class="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto pr-1 text-xs">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Modal Actions -->
+        <div class="space-y-2 pt-6 border-t border-slate-800">
+          <button id="modalSelectToggleBtn" class="w-full btn-secondary text-xs flex items-center justify-center gap-2">
+            <i data-lucide="check-square" class="w-4 h-4 text-brand-400"></i>
+            <span id="modalSelectToggleText">Выбрать для скачивания</span>
+          </button>
+
+          <a id="modalDownloadDirectBtn" href="" download target="_blank" class="w-full btn-primary text-xs flex items-center justify-center gap-2">
+            <i data-lucide="download" class="w-4 h-4"></i>
+            <span>Скачать оригинал</span>
+          </a>
+
+          <a id="modalSourceLink" href="" target="_blank" class="block text-center text-xs text-slate-500 hover:text-slate-300 underline">
+            Открыть на сайте источника
+          </a>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="w-full max-w-lg bg-dark-850 border border-slate-800 rounded-2xl p-6 shadow-2xl">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="sliders" class="w-5 h-5 text-brand-400"></i> Настройки приложения
+        </h3>
+        <button id="closeSettingsModalBtn" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        
+        <div>
+          <label class="block text-slate-300 font-medium mb-1.5">Папка для скачивания на Windows (Destination Directory):</label>
+          <input type="text" id="settingDownloadDir" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 font-mono focus:border-brand-500 focus:outline-none" value="./downloads" />
+          <p class="text-[11px] text-slate-500 mt-1">Пример для Windows: <code>C:\Users\User\Downloads\NSFW</code> или относительный путь <code>./downloads</code></p>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1.5">Шаблон имени файлов (Naming Pattern):</label>
+          <select id="settingNamingPattern" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none">
+            <option value="{source}_{id}_{tags}">{source}_{id}_{tags}.jpg (с тегами)</option>
+            <option value="{id}">{id}.jpg (только ID)</option>
+            <option value="{source}_{id}">{source}_{id}.jpg</option>
+            <option value="{rating}_{id}_{tags}">{rating}_{id}_{tags}.jpg</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-300 font-medium mb-1.5">Потоков скачивания (Threads):</label>
+            <input type="number" id="settingThreads" min="1" max="10" value="4" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block text-slate-300 font-medium mb-1.5">Лимит на страницу:</label>
+            <input type="number" id="settingLimit" min="10" max="100" value="40" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none" />
+          </div>
+        </div>
+
+        <div class="space-y-2 pt-2 border-t border-slate-800">
+          <label class="flex items-center gap-2 text-slate-300 cursor-pointer">
+            <input type="checkbox" id="settingSubfolders" checked class="w-4 h-4 rounded bg-dark-900 border-slate-700 text-brand-500 focus:ring-brand-500" />
+            <span>Создавать отдельную подпапку для каждого запроса/тега</span>
+          </label>
+          <label class="flex items-center gap-2 text-slate-300 cursor-pointer">
+            <input type="checkbox" id="settingSkipExisting" checked class="w-4 h-4 rounded bg-dark-900 border-slate-700 text-brand-500 focus:ring-brand-500" />
+            <span>Пропускать файлы, которые уже были скачаны (Skip Duplicates)</span>
+          </label>
+          <label class="flex items-center gap-2 text-slate-300 cursor-pointer">
+            <input type="checkbox" id="settingSaveMeta" checked class="w-4 h-4 rounded bg-dark-900 border-slate-700 text-brand-500 focus:ring-brand-500" />
+            <span>Сохранять метаданные и теги в .json файл рядом с картинкой</span>
+          </label>
+        </div>
+
+      </div>
+
+      <div class="mt-6 flex justify-end gap-2">
+        <button id="cancelSettingsBtn" class="btn-secondary text-xs">Отмена</button>
+        <button id="saveSettingsBtn" class="btn-primary text-xs">Сохранить настройки</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- App Script -->
+  <script src="app.js"></script>
+</body>
+</html>

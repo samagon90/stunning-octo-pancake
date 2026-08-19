@@ -1,0 +1,108 @@
+/* Custom CSS Components & Animations */
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f111a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #252a3d;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3b4461;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Button utility classes */
+.btn-primary {
+  background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+  color: white;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 14px 0 rgba(236, 72, 153, 0.25);
+  transition: all 0.2s ease;
+  border: 1px solid rgba(244, 114, 182, 0.3);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px 0 rgba(236, 72, 153, 0.35);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background: #171926;
+  color: #e2e8f0;
+  font-weight: 500;
+  padding: 0.5rem 0.875rem;
+  border-radius: 0.75rem;
+  border: 1px solid #2d3748;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #23283c;
+  border-color: #4a5568;
+  color: #ffffff;
+}
+
+.tag-chip {
+  background-color: #171926;
+  border: 1px solid #2d3748;
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  color: #94a3b8;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tag-chip:hover {
+  background-color: #23283c;
+  color: #f472b6;
+  border-color: #ec4899;
+}
+
+/* Card hover animation */
+.image-card {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.image-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.7);
+}
+
+.image-card.selected {
+  border-color: #ec4899 !important;
+  box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.4), 0 12px 24px -10px rgba(236, 72, 153, 0.3) !important;
+}
+
+/* Modal animation */
+#previewModal:not(.hidden) {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
