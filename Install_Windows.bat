@@ -1,10 +1,10 @@
 @echo off
 setlocal EnableDelayedExpansion
-title NSFW Image Hunter - Setup & Installer
+title NSFW Image Hunter - Setup and Installer
 cd /d "%~dp0"
 
 echo ===================================================================
-echo   NSFW Image Hunter & Downloader - Automatic Setup
+echo   NSFW Image Hunter - Automatic Setup
 echo ===================================================================
 echo.
 
@@ -78,7 +78,7 @@ echo [4/4] Building standalone Windows .EXE application...
 "%PY_CMD%" build_exe.py
 
 :: Create Desktop Shortcut via VBScript
-powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'NSFW Image Hunter.lnk')); $s.TargetPath = (Join-Path '%~dp0' 'dist\NSFW_Image_Hunter\NSFW_Image_Hunter.exe'); $s.WorkingDirectory = (Join-Path '%~dp0' 'dist\NSFW_Image_Hunter'); $s.Description = 'NSFW Image Hunter & Downloader'; $s.Save()" >nul 2>&1
+powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'NSFW Image Hunter.lnk')); $s.TargetPath = (Join-Path '%~dp0' 'dist\NSFW_Image_Hunter\NSFW_Image_Hunter.exe'); $s.WorkingDirectory = (Join-Path '%~dp0' 'dist\NSFW_Image_Hunter'); $s.Description = 'NSFW Image Hunter and Downloader'; $s.Save()" >nul 2>&1
 
 echo.
 echo ===================================================================
