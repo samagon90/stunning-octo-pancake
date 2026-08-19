@@ -81,6 +81,7 @@ def build_executable():
         "--hidden-import=primp",
         "--hidden-import=httpx",
         "--hidden-import=core.translit",
+        "--hidden-import=core.providers.direct_search",
         "--hidden-import=core.providers.adult_meta",
         "--hidden-import=core.providers.coomer",
         "--hidden-import=core.providers.erome",
