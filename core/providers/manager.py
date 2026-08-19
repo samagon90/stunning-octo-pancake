@@ -4,7 +4,12 @@ from typing import Dict, List, Optional, Any
 from core.models import Post, SearchRequest
 from core.translit import is_cyrillic, expand_query_for_booru, transliterate
 from core.providers.base import BaseProvider
+from core.providers.meta_search import MetaSearchProvider
+from core.providers.yandex import YandexImageProvider
+from core.providers.bing import BingImageProvider
+from core.providers.google import GoogleImageProvider
 from core.providers.duckduckgo_images import DuckDuckGoImageProvider
+from core.providers.reddit import RedditImageProvider
 from core.providers.rule34 import Rule34Provider
 from core.providers.gelbooru import GelbooruProvider
 from core.providers.danbooru import DanbooruProvider
@@ -20,7 +25,12 @@ logger = logging.getLogger(__name__)
 class ProviderManager:
     def __init__(self):
         self.providers: Dict[str, BaseProvider] = {
-            "web": DuckDuckGoImageProvider(),
+            "meta": MetaSearchProvider(),
+            "yandex": YandexImageProvider(),
+            "bing": BingImageProvider(),
+            "google": GoogleImageProvider(),
+            "duckduckgo": DuckDuckGoImageProvider(),
+            "reddit": RedditImageProvider(),
             "realbooru": RealbooruProvider(),
             "rule34": Rule34Provider(),
             "gelbooru": GelbooruProvider(),
@@ -34,15 +44,20 @@ class ProviderManager:
 
     def get_providers_list(self) -> List[Dict[str, str]]:
         return [
-            {"id": "web", "name": "🌐 Поиск по интернету (Web Search - Фото, Модели, Арты)"},
-            {"id": "all", "name": "✨ Все источники сразу (Web + Все Booru)"},
+            {"id": "meta", "name": "🚀 ВСЕ ПОИСКОВИКИ ВМЕСТЕ (Яндекс + Bing + Google + Reddit + DuckDuckGo)"},
+            {"id": "yandex", "name": "🇷🇺 Яндекс Картинки (Лучший поиск по моделям и именам)"},
+            {"id": "bing", "name": "🌐 Bing Картинки (Без цензуры 18+)"},
+            {"id": "google", "name": "🔍 Google Картинки"},
+            {"id": "duckduckgo", "name": "🦆 DuckDuckGo Картинки"},
+            {"id": "reddit", "name": "🔴 Reddit (Косплей, Фото, NSFW)"},
+            {"id": "all", "name": "✨ Все поисковики + Все Booru сразу"},
             {"id": "realbooru", "name": "Realbooru (Косплей и реальные фото)"},
             {"id": "rule34", "name": "Rule34 (xxx)"},
-            {"id": "gelbooru", "name": "Gelbooru"},
+            {"id": "gelbooru", "name": "Gelbooru (Аниме)"},
             {"id": "danbooru", "name": "Danbooru"},
             {"id": "yandere", "name": "Yande.re (4K обои)"},
             {"id": "konachan", "name": "Konachan"},
-            {"id": "waifu_im", "name": "Waifu.im (Аниме и AI)"},
+            {"id": "waifu_im", "name": "Waifu.im (AI и Аниме)"},
             {"id": "safebooru", "name": "Safebooru (Safe)"},
             {"id": "demo", "name": "Демо-режим (Offline)"}
         ]
@@ -56,9 +71,9 @@ class ProviderManager:
         booru_query = expand_query_for_booru(query) if is_cyrillic(query) else query
 
         if source == "all":
-            # Search across Web + Booru simultaneously
+            # Search across Meta Search (Yandex+Bing+Google+Reddit) + Boorus simultaneously
             active_tasks = [
-                self.providers["web"].search(query, req.page, req.limit, req.rating),
+                self.providers["meta"].search(query, req.page, req.limit, req.rating),
                 self.providers["realbooru"].search(booru_query, req.page, req.limit // 2, req.rating),
                 self.providers["rule34"].search(booru_query, req.page, req.limit // 2, req.rating),
                 self.providers["gelbooru"].search(booru_query, req.page, req.limit // 2, req.rating)
@@ -66,12 +81,11 @@ class ProviderManager:
             
             gathered = await asyncio.gather(*active_tasks, return_exceptions=True)
             for res in gathered:
-                if isinstance(res, Exception):
-                    errors.append(str(res))
-                elif isinstance(res, list):
+                if isinstance(res, list):
                     results.extend(res)
+                elif isinstance(res, Exception):
+                    errors.append(str(res))
             
-            # If nothing returned, fallback to demo
             if not results:
                 demo_res = await self.providers["demo"].search(query or "model", req.page, req.limit, req.rating)
                 results.extend(demo_res)
@@ -79,20 +93,20 @@ class ProviderManager:
         else:
             provider = self.providers.get(source)
             if not provider:
-                provider = self.providers["web"]
+                provider = self.providers["meta"]
             
             # Use appropriate query
-            active_q = query if provider.name == "duckduckgo" else booru_query
+            active_q = query if provider.name in ("meta", "yandex", "bing", "google", "duckduckgo", "reddit") else booru_query
             
             try:
                 results = await provider.search(active_q, req.page, req.limit, req.rating)
             except Exception as e:
                 errors.append(f"Ошибка источника {provider.display_name}: {str(e)}")
-                # Try web search fallback if booru fails on cyrillic
-                if provider.name != "duckduckgo":
+                # If a specific search engine failed, try meta search or yandex
+                if provider.name != "meta":
                     try:
-                        web_results = await self.providers["web"].search(query, req.page, req.limit, req.rating)
-                        results.extend(web_results)
+                        fallback_res = await self.providers["meta"].search(query, req.page, req.limit, req.rating)
+                        results.extend(fallback_res)
                     except Exception:
                         pass
                 
@@ -124,13 +138,12 @@ class ProviderManager:
             import random
             random.shuffle(results)
 
-        # Deduplicate by file_url or id
+        # Deduplicate by file_url
         seen = set()
         deduped = []
         for p in results:
-            key = p.file_url or (p.source, p.id)
-            if key not in seen:
-                seen.add(key)
+            if p.file_url and p.file_url not in seen:
+                seen.add(p.file_url)
                 deduped.append(p)
 
         return {

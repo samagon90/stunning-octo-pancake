@@ -4,7 +4,7 @@ const state = {
   selectedPosts: new Map(), // id -> post object
   currentPage: 1,
   currentQuery: '',
-  currentSource: 'web',
+  currentSource: 'meta',
   currentRating: 'all',
   currentAspect: 'all',
   currentSort: 'recent',

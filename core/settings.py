@@ -6,7 +6,7 @@ SETTINGS_FILE = Path.home() / ".nsfw_image_searcher_config.json"
 
 DEFAULT_SETTINGS: Dict[str, Any] = {
     "download_dir": str(Path.home() / "Downloads" / "NSFW_Images"),
-    "default_source": "web",
+    "default_source": "meta",
     "default_rating": "all",
     "naming_pattern": "{source}_{id}_{tags}",
     "create_subfolders": True,
