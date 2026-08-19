@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NSFW Image Hunter & Downloader</title>
+  <title>NSFW Image Hunter & Browser Downloader</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
@@ -41,21 +41,33 @@
   <header class="sticky top-0 z-40 bg-dark-800/90 backdrop-blur-md border-b border-slate-800 px-4 lg:px-8 py-3 transition-all shadow-md">
     <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
       
-      <!-- Logo -->
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 via-pink-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-brand-500/25">
-          <i data-lucide="flame" class="w-6 h-6 text-white"></i>
+      <!-- Logo & Mode Switcher -->
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 via-pink-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-brand-500/25">
+            <i data-lucide="flame" class="w-6 h-6 text-white"></i>
+          </div>
+          <div>
+            <h1 class="text-lg font-extrabold bg-gradient-to-r from-brand-400 via-pink-300 to-indigo-400 bg-clip-text text-transparent">
+              NSFW Image Hunter
+            </h1>
+            <p class="text-[11px] text-slate-400">Поиск, выбор и пакетное скачивание артов</p>
+          </div>
         </div>
-        <div>
-          <h1 class="text-lg font-extrabold bg-gradient-to-r from-brand-400 via-pink-300 to-indigo-400 bg-clip-text text-transparent">
-            NSFW Image Hunter
-          </h1>
-          <p class="text-[11px] text-slate-400">Поиск, выбор и пакетное скачивание артов</p>
+
+        <!-- Mode Buttons -->
+        <div class="hidden sm:flex items-center bg-dark-900 p-1 rounded-xl border border-slate-700/80">
+          <button id="modeSearchBtn" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-500 text-white transition-all shadow">
+            🔍 Поисковик
+          </button>
+          <button id="modeBrowserBtn" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition-all">
+            🌐 Браузер и Захват по ссылке
+          </button>
         </div>
       </div>
 
-      <!-- Search Box & Provider Selection -->
-      <div class="flex-1 max-w-2xl min-w-[300px] relative">
+      <!-- Main Search Box (Search Mode) -->
+      <div id="searchBoxContainer" class="flex-1 max-w-2xl min-w-[300px] relative">
         <div class="flex items-center gap-2 bg-dark-900/90 border border-slate-700/80 rounded-xl p-1.5 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20 transition-all shadow-inner">
           
           <!-- Source Dropdown -->
@@ -66,15 +78,12 @@
             <option value="web">🌐 Поиск в интернете (Яндекс, Bing, Yahoo, DuckDuckGo)</option>
             <option value="reddit">🔴 Reddit (NSFW, Косплей, Фото)</option>
             <option value="realbooru">Realbooru (Косплей и реальные фото)</option>
-            <option value="all">✨ Все источники сразу (Модели + Booru)</option>
+            <option value="all">✨ Все источники сразу</option>
             <option value="rule34">Rule34 (xxx)</option>
             <option value="gelbooru">Gelbooru (Аниме)</option>
             <option value="danbooru">Danbooru</option>
             <option value="yandere">Yande.re (4K)</option>
-            <option value="konachan">Konachan</option>
-            <option value="waifu_im">Waifu.im (AI и Аниме)</option>
             <option value="safebooru">Safebooru (Safe)</option>
-            <option value="demo">🎨 Демо-режим (Offline)</option>
           </select>
 
           <!-- Input Search Query -->
@@ -89,14 +98,6 @@
             <!-- Autocomplete suggestions dropdown -->
             <div id="autocompleteList" class="hidden absolute left-0 right-0 top-full mt-2 bg-dark-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 max-h-60 overflow-y-auto"></div>
           </div>
-
-          <!-- Rating Filter Dropdown -->
-          <select id="ratingSelect" class="bg-dark-800 text-slate-300 text-xs px-2.5 py-2 rounded-lg border border-slate-700 focus:outline-none focus:border-brand-500 cursor-pointer">
-            <option value="all">🔞 Все рейтинги</option>
-            <option value="explicit" selected>🔴 Только NSFW (Explicit)</option>
-            <option value="questionable">🟡 Ecchi (Questionable)</option>
-            <option value="safe">🟢 Safe (General)</option>
-          </select>
 
           <!-- Search Button -->
           <button id="searchBtn" class="bg-brand-500 hover:bg-brand-600 text-white font-medium px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all shadow-md shadow-brand-500/25 active:scale-95">
@@ -118,32 +119,45 @@
 
     </div>
 
+    <!-- URL Grabber Bar (Browser Mode) -->
+    <div id="urlGrabberContainer" class="hidden max-w-7xl mx-auto mt-3 p-3 bg-dark-900 border border-brand-500/40 rounded-2xl shadow-xl">
+      <div class="flex flex-col sm:flex-row items-center gap-3">
+        <div class="flex items-center gap-2 text-brand-400 font-bold text-xs whitespace-nowrap">
+          <i data-lucide="link" class="w-4 h-4"></i> Захват картинок по ссылке:
+        </div>
+        <input 
+          type="text" 
+          id="urlGrabberInput" 
+          placeholder="Вставьте ссылку на страницу Яндекс / Bing / EroMe / Coomer / Альбом / Любой сайт..."
+          class="flex-1 w-full bg-dark-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
+        />
+        <button id="grabUrlBtn" class="w-full sm:w-auto btn-primary text-xs flex items-center justify-center gap-1.5 py-2 px-4 whitespace-nowrap">
+          <i data-lucide="zap" class="w-4 h-4"></i> Захватить все фото со страницы
+        </button>
+      </div>
+
+      <!-- Quick Web Links -->
+      <div class="mt-2.5 pt-2 border-t border-slate-800 flex items-center gap-2 overflow-x-auto text-[11px] no-scrollbar">
+        <span class="text-slate-500">Быстрый поиск в браузере:</span>
+        <button onclick="openExternalSearch('yandex')" class="tag-chip text-rose-300 hover:text-white">🇷🇺 Открыть Яндекс Картинки</button>
+        <button onclick="openExternalSearch('bing')" class="tag-chip text-sky-300 hover:text-white">🌐 Открыть Bing 18+</button>
+        <button onclick="openExternalSearch('erome')" class="tag-chip text-amber-300 hover:text-white">🔥 Открыть EroMe</button>
+        <button onclick="openExternalSearch('coomer')" class="tag-chip text-emerald-300 hover:text-white">⭐ Открыть Coomer.su</button>
+      </div>
+    </div>
+
     <!-- Quick Tags Chips & Presets Bar -->
-    <div class="max-w-7xl mx-auto mt-2.5 flex items-center gap-2 overflow-x-auto pb-1 text-xs no-scrollbar">
+    <div id="presetsBar" class="max-w-7xl mx-auto mt-2.5 flex items-center gap-2 overflow-x-auto pb-1 text-xs no-scrollbar">
       <span class="text-slate-500 flex items-center gap-1 font-medium whitespace-nowrap">
         <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i> Пресеты:
       </span>
       <div class="flex items-center gap-1.5 flex-nowrap">
+        <button class="preset-btn" onclick="applyPreset('Милена Лисицына')">👑 Милена Лисицына</button>
+        <button class="preset-btn" onclick="applyPreset('Milena Fox photoshoot')">📸 Milena Fox</button>
         <button class="preset-btn" onclick="applyPreset('solo 1girl highres')">⭐ Популярное</button>
-        <button class="preset-btn" onclick="applyPreset('rating:explicit score:>500')">🔥 Топ рейтинг</button>
-        <button class="preset-btn" onclick="applyPreset('wallpaper 4k highres')">💎 4K Обои</button>
+        <button class="preset-btn" onclick="applyPreset('cosplay model photoshoot')">👘 Косплей фото</button>
         <button class="preset-btn" onclick="applyPreset('bikini beach summer')">👙 Бикини</button>
         <button class="preset-btn" onclick="applyPreset('lingerie stockings')">💋 Lingerie</button>
-        <button class="preset-btn" onclick="applyPreset('cyberpunk neon 1girl')">🌆 Cyberpunk</button>
-      </div>
-
-      <div class="h-4 w-px bg-slate-800 mx-1"></div>
-
-      <span class="text-slate-500 font-medium whitespace-nowrap">Теги:</span>
-      <div id="quickTags" class="flex items-center gap-1.5 flex-nowrap">
-        <button class="tag-chip">+solo</button>
-        <button class="tag-chip">+1girl</button>
-        <button class="tag-chip">+highres</button>
-        <button class="tag-chip">+waifu</button>
-        <button class="tag-chip">+ass</button>
-        <button class="tag-chip">+breasts</button>
-        <button class="tag-chip">+maid</button>
-        <button class="tag-chip">+school_uniform</button>
       </div>
     </div>
   </header>
@@ -176,20 +190,6 @@
 
       <!-- Filters & Download Action Buttons -->
       <div class="flex items-center gap-2">
-        <!-- Filter dropdowns -->
-        <select id="aspectSelect" class="bg-dark-800 text-slate-300 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 focus:outline-none">
-          <option value="all">📐 Любая ориентация</option>
-          <option value="landscape">🖼️ Горизонтальная (Обои)</option>
-          <option value="portrait">📱 Вертикальная (Портрет)</option>
-          <option value="square">⏹️ Квадрат</option>
-        </select>
-
-        <select id="sortSelect" class="bg-dark-800 text-slate-300 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 focus:outline-none">
-          <option value="recent">🕒 Новые (Recent)</option>
-          <option value="score">⭐ По оценке (Score)</option>
-          <option value="random">🎲 Случайно</option>
-        </select>
-
         <!-- Download Selected (Local Folder) -->
         <button id="downloadSelectedBtn" disabled class="btn-primary text-xs flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
           <i data-lucide="download" class="w-4 h-4"></i>
@@ -251,8 +251,8 @@
       <div class="w-16 h-16 rounded-2xl bg-dark-800 border border-slate-800 flex items-center justify-center mb-4 text-brand-400">
         <i data-lucide="image" class="w-8 h-8"></i>
       </div>
-      <h3 class="text-lg font-bold text-slate-200 mb-1">Начните поиск картинок</h3>
-      <p class="text-sm text-slate-400 max-w-md">Введите теги в поле поиска сверху, выберите источник (Rule34, Gelbooru, Waifu.im и др.) и нажмите «Найти».</p>
+      <h3 class="text-lg font-bold text-slate-200 mb-1">Поиск фотосетов и моделей</h3>
+      <p class="text-sm text-slate-400 max-w-md">Введите имя модели (например <b>Милена Лисицына</b>) или вставьте ссылку на любую страницу / альбом для захвата фотографий.</p>
     </div>
 
     <!-- Image Gallery Grid -->
@@ -360,7 +360,7 @@
     <div class="w-full max-w-lg bg-dark-850 border border-slate-800 rounded-2xl p-6 shadow-2xl">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <i data-lucide="help-circle" class="w-5 h-5 text-brand-400"></i> Справка по поиску и тегам
+          <i data-lucide="help-circle" class="w-5 h-5 text-brand-400"></i> Как искать моделей и фотосеты
         </h3>
         <button id="closeHelpModalBtn" class="text-slate-400 hover:text-white">
           <i data-lucide="x" class="w-5 h-5"></i>
@@ -368,15 +368,8 @@
       </div>
 
       <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
-        <p>Используйте теги через пробел. Чем точнее теги, тем лучше результаты:</p>
-        <div class="bg-dark-900 p-3 rounded-xl border border-slate-800 font-mono space-y-1.5 text-[11px]">
-          <div><span class="text-brand-400">solo 1girl</span> — одна девушка на арте</div>
-          <div><span class="text-brand-400">highres 4k</span> — высокое разрешение</div>
-          <div><span class="text-brand-400">-male -furry</span> — исключить мужчин или фурри (знак минус)</div>
-          <div><span class="text-brand-400">rating:explicit</span> — только контент для взрослых (18+)</div>
-          <div><span class="text-brand-400">score:>500</span> — только работы с высоким рейтингом</div>
-        </div>
-        <p class="text-slate-400 text-[11px]">💡 Совет: кликните по любому тегу в окне предпросмотра изображения, чтобы моментально запустить по нему поиск!</p>
+        <p>1. <b>Поиск по базам моделей:</b> выберите источник <code>👑 ПОИСК МОДЕЛЕЙ И ФОТОСЕТОВ 18+</code> или <code>⭐ Coomer / OnlyFans / Fansly</code> и введите имя (например: <b>Милена Лисицына</b> или <b>Milena Fox</b>).</p>
+        <p>2. <b>Захват по ссылке (Режим Браузера):</b> нажмите кнопку «Браузер и Захват по ссылке», откройте Яндекс Картинки / Bing / EroMe, скопируйте ссылку на альбом или поисковую выдачу, вставьте в поле и нажмите «Захватить все фото со страницы»!</p>
       </div>
 
       <div class="mt-6 flex justify-end">
@@ -398,49 +391,10 @@
       </div>
 
       <div class="space-y-4 text-xs">
-        
         <div>
           <label class="block text-slate-300 font-medium mb-1.5">Папка для скачивания на Windows (Destination Directory):</label>
           <input type="text" id="settingDownloadDir" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 font-mono focus:border-brand-500 focus:outline-none" value="./downloads" />
-          <p class="text-[11px] text-slate-500 mt-1">Пример для Windows: <code>C:\Users\User\Downloads\NSFW</code> или относительный путь <code>./downloads</code></p>
         </div>
-
-        <div>
-          <label class="block text-slate-300 font-medium mb-1.5">Шаблон имени файлов (Naming Pattern):</label>
-          <select id="settingNamingPattern" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none">
-            <option value="{source}_{id}_{tags}">{source}_{id}_{tags}.jpg (с тегами)</option>
-            <option value="{id}">{id}.jpg (только ID)</option>
-            <option value="{source}_{id}">{source}_{id}.jpg</option>
-            <option value="{rating}_{id}_{tags}">{rating}_{id}_{tags}.jpg</option>
-          </select>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-slate-300 font-medium mb-1.5">Потоков скачивания (Threads):</label>
-            <input type="number" id="settingThreads" min="1" max="10" value="4" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none" />
-          </div>
-          <div>
-            <label class="block text-slate-300 font-medium mb-1.5">Лимит на страницу:</label>
-            <input type="number" id="settingLimit" min="10" max="100" value="40" class="w-full bg-dark-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none" />
-          </div>
-        </div>
-
-        <div class="space-y-2 pt-2 border-t border-slate-800">
-          <label class="flex items-center gap-2 text-slate-300 cursor-pointer">
-            <input type="checkbox" id="settingSubfolders" checked class="w-4 h-4 rounded bg-dark-900 border-slate-700 text-brand-500 focus:ring-brand-500" />
-            <span>Создавать отдельную подпапку для каждого запроса/тега</span>
-          </label>
-          <label class="flex items-center gap-2 text-slate-300 cursor-pointer">
-            <input type="checkbox" id="settingSkipExisting" checked class="w-4 h-4 rounded bg-dark-900 border-slate-700 text-brand-500 focus:ring-brand-500" />
-            <span>Пропускать файлы, которые уже были скачаны (Skip Duplicates)</span>
-          </label>
-          <label class="flex items-center gap-2 text-slate-300 cursor-pointer">
-            <input type="checkbox" id="settingSaveMeta" checked class="w-4 h-4 rounded bg-dark-900 border-slate-700 text-brand-500 focus:ring-brand-500" />
-            <span>Сохранять метаданные и теги в .json файл рядом с картинкой</span>
-          </label>
-        </div>
-
       </div>
 
       <div class="mt-6 flex justify-end gap-2">

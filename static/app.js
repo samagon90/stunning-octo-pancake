@@ -3,12 +3,13 @@ const state = {
   posts: [],
   selectedPosts: new Map(), // id -> post object
   currentPage: 1,
-  currentQuery: '',
+  currentQuery: 'Милена Лисицына',
   currentSource: 'adult_meta',
   currentRating: 'all',
   currentAspect: 'all',
   currentSort: 'recent',
   previewIndex: -1,
+  mode: 'search', // 'search' or 'browser'
   settings: {
     download_dir: './downloads',
     naming_pattern: '{source}_{id}_{tags}',
@@ -24,9 +25,6 @@ const state = {
 // DOM Elements
 const searchInput = document.getElementById('searchInput');
 const sourceSelect = document.getElementById('sourceSelect');
-const ratingSelect = document.getElementById('ratingSelect');
-const aspectSelect = document.getElementById('aspectSelect');
-const sortSelect = document.getElementById('sortSelect');
 const searchBtn = document.getElementById('searchBtn');
 const galleryGrid = document.getElementById('galleryGrid');
 const loadingGrid = document.getElementById('loadingGrid');
@@ -46,6 +44,15 @@ const selectHighResBtn = document.getElementById('selectHighResBtn');
 const autocompleteList = document.getElementById('autocompleteList');
 const statusBanner = document.getElementById('statusBanner');
 const statusBannerText = document.getElementById('statusBannerText');
+
+// Mode Switcher Elements
+const modeSearchBtn = document.getElementById('modeSearchBtn');
+const modeBrowserBtn = document.getElementById('modeBrowserBtn');
+const searchBoxContainer = document.getElementById('searchBoxContainer');
+const urlGrabberContainer = document.getElementById('urlGrabberContainer');
+const urlGrabberInput = document.getElementById('urlGrabberInput');
+const grabUrlBtn = document.getElementById('grabUrlBtn');
+const presetsBar = document.getElementById('presetsBar');
 
 // Progress Elements
 const downloadProgressCard = document.getElementById('downloadProgressCard');
@@ -86,12 +93,6 @@ const closeSettingsModalBtn = document.getElementById('closeSettingsModalBtn');
 const cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
 const saveSettingsBtn = document.getElementById('saveSettingsBtn');
 const settingDownloadDir = document.getElementById('settingDownloadDir');
-const settingNamingPattern = document.getElementById('settingNamingPattern');
-const settingThreads = document.getElementById('settingThreads');
-const settingLimit = document.getElementById('settingLimit');
-const settingSubfolders = document.getElementById('settingSubfolders');
-const settingSkipExisting = document.getElementById('settingSkipExisting');
-const settingSaveMeta = document.getElementById('settingSaveMeta');
 
 // Initial Setup
 document.addEventListener('DOMContentLoaded', async () => {
@@ -101,13 +102,87 @@ document.addEventListener('DOMContentLoaded', async () => {
   await fetchSettings();
   setupEventListeners();
   
-  // Default demo search to populate on start
+  // Set initial query to popular search
+  if (searchInput) searchInput.value = 'Милена Лисицына';
   performSearch();
 });
 
+// Mode Switching
+function switchMode(mode) {
+  state.mode = mode;
+  if (mode === 'search') {
+    modeSearchBtn.classList.add('bg-brand-500', 'text-white');
+    modeSearchBtn.classList.remove('text-slate-400');
+    modeBrowserBtn.classList.remove('bg-brand-500', 'text-white');
+    modeBrowserBtn.classList.add('text-slate-400');
+
+    searchBoxContainer.classList.remove('hidden');
+    urlGrabberContainer.classList.add('hidden');
+    presetsBar.classList.remove('hidden');
+  } else {
+    modeBrowserBtn.classList.add('bg-brand-500', 'text-white');
+    modeBrowserBtn.classList.remove('text-slate-400');
+    modeSearchBtn.classList.remove('bg-brand-500', 'text-white');
+    modeSearchBtn.classList.add('text-slate-400');
+
+    searchBoxContainer.classList.add('hidden');
+    urlGrabberContainer.classList.remove('hidden');
+    presetsBar.classList.add('hidden');
+  }
+}
+
+// External Search Openers
+window.openExternalSearch = function(engine) {
+  const q = encodeURIComponent(searchInput ? searchInput.value.trim() || 'Милена Лисицына' : 'Милена Лисицына');
+  let targetUrl = '';
+  if (engine === 'yandex') targetUrl = `https://yandex.ru/images/search?text=${q}`;
+  else if (engine === 'bing') targetUrl = `https://www.bing.com/images/search?q=${q}&adlt=off`;
+  else if (engine === 'erome') targetUrl = `https://www.erome.com/search?q=${q}`;
+  else if (engine === 'coomer') targetUrl = `https://coomer.su/posts?q=${q}`;
+
+  urlGrabberInput.value = targetUrl;
+  window.open(targetUrl, '_blank');
+  showToast('Страница открыта в новой вкладке. Скопируйте ссылку и нажмите «Захватить»!', 'info');
+};
+
+// URL Grabber Action
+async function handleUrlGrab() {
+  const url = urlGrabberInput.value.trim();
+  if (!url) {
+    showToast('Пожалуйста, вставьте ссылку на страницу с картинками!', 'warning');
+    return;
+  }
+
+  showLoading(true);
+  statusBanner.classList.add('hidden');
+
+  try {
+    showToast('Захват всех изображений со страницы...', 'info');
+    const res = await fetch(`/api/extract-url?url=${encodeURIComponent(url)}`);
+    if (!res.ok) throw new Error(`Ошибка захвата: ${res.status}`);
+
+    const data = await res.json();
+    state.posts = data.posts || [];
+
+    if (state.posts.length === 0) {
+      showToast('На указанной странице не найдено прямых картинок.', 'warning');
+      statusBannerText.innerText = 'На странице не найдено подходящих изображений. Попробуйте скопировать ссылку на конкретный альбом или поисковую выдачу.';
+      statusBanner.classList.remove('hidden');
+    } else {
+      showToast(`Успешно захвачено ${state.posts.length} картинок со страницы!`, 'success');
+    }
+
+    renderGallery();
+  } catch (e) {
+    showToast('Ошибка: ' + e.message, 'error');
+  } finally {
+    showLoading(false);
+  }
+}
+
 // Presets
 window.applyPreset = function(tags) {
-  searchInput.value = tags;
+  if (searchInput) searchInput.value = tags;
   state.currentPage = 1;
   performSearch();
 };
@@ -118,13 +193,7 @@ async function fetchSettings() {
     const res = await fetch('/api/settings');
     if (res.ok) {
       state.settings = await res.json();
-      settingDownloadDir.value = state.settings.download_dir || './downloads';
-      settingNamingPattern.value = state.settings.naming_pattern || '{source}_{id}_{tags}';
-      settingThreads.value = state.settings.threads || 4;
-      settingLimit.value = state.settings.limit || 40;
-      settingSubfolders.checked = state.settings.create_subfolders !== false;
-      settingSkipExisting.checked = state.settings.skip_existing !== false;
-      settingSaveMeta.checked = state.settings.save_metadata !== false;
+      if (settingDownloadDir) settingDownloadDir.value = state.settings.download_dir || './downloads';
     }
   } catch (e) {
     console.warn('Could not load settings:', e);
@@ -133,13 +202,13 @@ async function fetchSettings() {
 
 async function saveSettings() {
   const updated = {
-    download_dir: settingDownloadDir.value.trim() || './downloads',
-    naming_pattern: settingNamingPattern.value,
-    threads: parseInt(settingThreads.value) || 4,
-    limit: parseInt(settingLimit.value) || 40,
-    create_subfolders: settingSubfolders.checked,
-    skip_existing: settingSkipExisting.checked,
-    save_metadata: settingSaveMeta.checked
+    download_dir: settingDownloadDir ? settingDownloadDir.value.trim() || './downloads' : './downloads',
+    naming_pattern: '{source}_{id}_{tags}',
+    threads: 4,
+    limit: 40,
+    create_subfolders: true,
+    skip_existing: true,
+    save_metadata: true
   };
 
   try {
@@ -160,92 +229,72 @@ async function saveSettings() {
 
 // Event Listeners
 function setupEventListeners() {
-  searchBtn.addEventListener('click', () => {
-    state.currentPage = 1;
-    performSearch();
-  });
+  if (modeSearchBtn) modeSearchBtn.addEventListener('click', () => switchMode('search'));
+  if (modeBrowserBtn) modeBrowserBtn.addEventListener('click', () => switchMode('browser'));
+  if (grabUrlBtn) grabUrlBtn.addEventListener('click', handleUrlGrab);
+  if (urlGrabberInput) {
+    urlGrabberInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleUrlGrab();
+    });
+  }
 
-  searchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      autocompleteList.classList.add('hidden');
-      state.currentPage = 1;
-      performSearch();
-    }
-  });
-
-  // Autocomplete on input
-  let debounceTimeout;
-  searchInput.addEventListener('input', () => {
-    clearTimeout(debounceTimeout);
-    debounceTimeout = setTimeout(handleAutocomplete, 250);
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!autocompleteList.contains(e.target) && e.target !== searchInput) {
-      autocompleteList.classList.add('hidden');
-    }
-  });
-
-  sourceSelect.addEventListener('change', () => {
-    state.currentPage = 1;
-    performSearch();
-  });
-
-  ratingSelect.addEventListener('change', () => {
-    state.currentPage = 1;
-    performSearch();
-  });
-
-  aspectSelect.addEventListener('change', () => {
-    performSearch();
-  });
-
-  sortSelect.addEventListener('change', () => {
-    performSearch();
-  });
-
-  // Quick tag chips
-  document.querySelectorAll('.tag-chip').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tag = btn.innerText.replace('+', '').trim();
-      const current = searchInput.value.trim();
-      if (!current.split(/\s+/).includes(tag)) {
-        searchInput.value = current ? `${current} ${tag}` : tag;
-      }
+  if (searchBtn) {
+    searchBtn.addEventListener('click', () => {
       state.currentPage = 1;
       performSearch();
     });
-  });
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        if (autocompleteList) autocompleteList.classList.add('hidden');
+        state.currentPage = 1;
+        performSearch();
+      }
+    });
+  }
+
+  if (sourceSelect) {
+    sourceSelect.addEventListener('change', () => {
+      state.currentPage = 1;
+      performSearch();
+    });
+  }
 
   // Pagination
-  prevPageBtn.addEventListener('click', () => {
-    if (state.currentPage > 1) {
-      state.currentPage--;
-      performSearch();
-    }
-  });
+  if (prevPageBtn) {
+    prevPageBtn.addEventListener('click', () => {
+      if (state.currentPage > 1) {
+        state.currentPage--;
+        performSearch();
+      }
+    });
+  }
 
-  nextPageBtn.addEventListener('click', () => {
-    state.currentPage++;
-    performSearch();
-  });
+  if (nextPageBtn) {
+    nextPageBtn.addEventListener('click', () => {
+      state.currentPage++;
+      performSearch();
+    });
+  }
 
   // Selection actions
-  selectAllBtn.addEventListener('click', selectAll);
-  deselectAllBtn.addEventListener('click', deselectAll);
-  invertSelectBtn.addEventListener('click', invertSelection);
-  selectHighResBtn.addEventListener('click', selectHighRes);
+  if (selectAllBtn) selectAllBtn.addEventListener('click', selectAll);
+  if (deselectAllBtn) deselectAllBtn.addEventListener('click', deselectAll);
+  if (invertSelectBtn) invertSelectBtn.addEventListener('click', invertSelection);
+  if (selectHighResBtn) selectHighResBtn.addEventListener('click', selectHighRes);
 
   // Download actions
-  downloadSelectedBtn.addEventListener('click', startLocalDownload);
-  downloadZipBtn.addEventListener('click', downloadAsZip);
-  cancelDlBtn.addEventListener('click', cancelDownload);
+  if (downloadSelectedBtn) downloadSelectedBtn.addEventListener('click', startLocalDownload);
+  if (downloadZipBtn) downloadZipBtn.addEventListener('click', downloadAsZip);
+  if (cancelDlBtn) cancelDlBtn.addEventListener('click', cancelDownload);
 
   // Modal
-  closeModalBtn.addEventListener('click', closeModal);
-  modalPrevBtn.addEventListener('click', () => navigateModal(-1));
-  modalNextBtn.addEventListener('click', () => navigateModal(1));
-  modalSelectToggleBtn.addEventListener('click', toggleModalPostSelection);
+  if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+  if (modalPrevBtn) modalPrevBtn.addEventListener('click', () => navigateModal(-1));
+  if (modalNextBtn) modalNextBtn.addEventListener('click', () => navigateModal(1));
+  if (modalSelectToggleBtn) modalSelectToggleBtn.addEventListener('click', toggleModalPostSelection);
 
   // Help modal
   if (openHelpBtn) openHelpBtn.addEventListener('click', () => helpModal.classList.remove('hidden'));
@@ -254,7 +303,7 @@ function setupEventListeners() {
 
   // Keyboard navigation for modal
   document.addEventListener('keydown', (e) => {
-    if (!previewModal.classList.contains('hidden')) {
+    if (previewModal && !previewModal.classList.contains('hidden')) {
       if (e.key === 'Escape') closeModal();
       else if (e.key === 'ArrowLeft') navigateModal(-1);
       else if (e.key === 'ArrowRight') navigateModal(1);
@@ -262,62 +311,19 @@ function setupEventListeners() {
   });
 
   // Settings modal
-  openSettingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
-  closeSettingsModalBtn.addEventListener('click', () => settingsModal.classList.add('hidden'));
-  cancelSettingsBtn.addEventListener('click', () => settingsModal.classList.add('hidden'));
-  saveSettingsBtn.addEventListener('click', saveSettings);
+  if (openSettingsBtn) openSettingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
+  if (closeSettingsModalBtn) closeSettingsModalBtn.addEventListener('click', () => settingsModal.classList.add('hidden'));
+  if (cancelSettingsBtn) cancelSettingsBtn.addEventListener('click', () => settingsModal.classList.add('hidden'));
+  if (saveSettingsBtn) saveSettingsBtn.addEventListener('click', saveSettings);
 }
-
-// Autocomplete handler
-async function handleAutocomplete() {
-  const query = searchInput.value.trim();
-  if (!query) {
-    autocompleteList.classList.add('hidden');
-    return;
-  }
-  try {
-    const res = await fetch(`/api/tags/suggest?q=${encodeURIComponent(query)}`);
-    if (res.ok) {
-      const data = await res.json();
-      const suggestions = data.suggestions || [];
-      if (suggestions.length === 0) {
-        autocompleteList.classList.add('hidden');
-        return;
-      }
-      autocompleteList.innerHTML = suggestions.map(tag => `
-        <div class="px-3 py-2 text-xs text-slate-200 hover:bg-brand-500/20 hover:text-brand-400 cursor-pointer flex items-center justify-between transition-all" onclick="applySuggestion('${tag}')">
-          <span class="font-mono">${tag}</span>
-          <span class="text-[10px] text-slate-500">тег</span>
-        </div>
-      `).join('');
-      autocompleteList.classList.remove('hidden');
-    }
-  } catch (e) {
-    autocompleteList.classList.add('hidden');
-  }
-}
-
-window.applySuggestion = function(tag) {
-  const tokens = searchInput.value.trim().split(/\s+/);
-  tokens[tokens.length - 1] = tag;
-  searchInput.value = tokens.join(' ') + ' ';
-  autocompleteList.classList.add('hidden');
-  searchInput.focus();
-};
 
 // Search Execution
 async function performSearch() {
-  const query = searchInput.value.trim();
-  const source = sourceSelect.value;
-  const rating = ratingSelect.value;
-  const aspect = aspectSelect.value;
-  const sort = sortSelect.value;
+  const query = searchInput ? searchInput.value.trim() : 'Милена Лисицына';
+  const source = sourceSelect ? sourceSelect.value : 'adult_meta';
 
   state.currentQuery = query;
   state.currentSource = source;
-  state.currentRating = rating;
-  state.currentAspect = aspect;
-  state.currentSort = sort;
 
   showLoading(true);
   statusBanner.classList.add('hidden');
@@ -327,16 +333,11 @@ async function performSearch() {
       query: query,
       source: source,
       page: state.currentPage,
-      limit: state.settings.limit || 40,
-      rating: rating,
-      aspect_ratio: aspect,
-      sort: sort
+      limit: 40
     });
 
     const res = await fetch(`/api/search?${params.toString()}`);
-    if (!res.ok) {
-      throw new Error(`Ошибка сервера: ${res.status}`);
-    }
+    if (!res.ok) throw new Error(`Ошибка сервера: ${res.status}`);
 
     const data = await res.json();
     state.posts = data.posts || [];
@@ -364,7 +365,7 @@ function showLoading(isLoading) {
     paginationBar.classList.add('hidden');
     loadingGrid.classList.remove('hidden');
     
-    // Render 10 skeleton cards
+    // Render skeleton cards
     loadingGrid.innerHTML = Array(10).fill(0).map(() => `
       <div class="bg-dark-800 rounded-2xl p-3 border border-slate-800 animate-pulse">
         <div class="w-full h-56 bg-dark-900 rounded-xl mb-3"></div>
@@ -394,12 +395,9 @@ function renderGallery() {
 
   galleryGrid.innerHTML = state.posts.map((post, idx) => {
     const isSelected = state.selectedPosts.has(post.id);
-    const ratingUpper = (post.rating || 'NSFW').toUpperCase();
-    const ratingColor = ratingUpper.includes('EXP') ? 'rose' : ratingUpper.includes('QUEST') ? 'amber' : 'emerald';
-    
     const previewUrl = post.preview_url ? `/api/proxy-image?url=${encodeURIComponent(post.preview_url)}` : post.file_url;
     const resText = post.width && post.height ? `${post.width}×${post.height}` : (post.file_ext || 'IMG').toUpperCase();
-    const score = post.score || 0;
+    const sourceText = (post.source || 'WEB').toUpperCase();
 
     return `
       <div 
@@ -407,7 +405,7 @@ function renderGallery() {
         class="image-card relative group bg-dark-800 border ${isSelected ? 'border-brand-500 selected' : 'border-slate-800'} rounded-2xl p-2.5 flex flex-col justify-between transition-all cursor-pointer"
         onclick="handleCardClick(event, ${idx})"
       >
-        <!-- Card Top Bar: Checkbox & Rating -->
+        <!-- Card Top Bar -->
         <div class="flex items-center justify-between mb-2 z-10">
           <label class="flex items-center cursor-pointer" onclick="event.stopPropagation()">
             <input 
@@ -418,22 +416,22 @@ function renderGallery() {
             />
           </label>
 
-          <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-${ratingColor}-500/20 text-${ratingColor}-400 border border-${ratingColor}-500/30">
-            ${ratingUpper.slice(0, 4)}
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30">
+            ${sourceText.slice(0, 10)}
           </span>
         </div>
 
-        <!-- Thumbnail Image Container -->
+        <!-- Thumbnail Container -->
         <div class="relative w-full h-56 bg-dark-950 rounded-xl overflow-hidden mb-2 flex items-center justify-center">
           <img 
             src="${previewUrl}" 
             alt="Thumbnail" 
             loading="lazy" 
             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            onerror="this.onerror=null; this.src='/api/proxy-image?url=fallback';"
+            onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&q=80';"
           />
 
-          <!-- Quick Preview Overlay Button on Hover -->
+          <!-- Quick Zoom Overlay -->
           <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
             <button 
               onclick="event.stopPropagation(); openPreviewModal(${idx});" 
@@ -445,10 +443,10 @@ function renderGallery() {
           </div>
         </div>
 
-        <!-- Card Footer: Resolution, Score & Source -->
+        <!-- Card Footer -->
         <div class="flex items-center justify-between text-[11px] text-slate-400 px-1">
           <span class="font-mono text-slate-300 font-medium">${resText}</span>
-          <span class="text-amber-400 font-semibold flex items-center gap-0.5">★ ${score}</span>
+          <span class="text-amber-400 font-semibold flex items-center gap-0.5">★ ${post.score || 950}</span>
         </div>
       </div>
     `;
@@ -479,7 +477,6 @@ window.toggleSelectPost = function(postId, isChecked) {
     state.selectedPosts.delete(postId);
   }
 
-  // Update card UI
   const card = document.getElementById(`card-${postId}`);
   if (card) {
     const chk = card.querySelector('input[type="checkbox"]');
@@ -553,11 +550,11 @@ window.openPreviewModal = function(idx) {
   const fullUrl = post.file_url ? `/api/proxy-image?url=${encodeURIComponent(post.file_url)}` : post.sample_url;
   
   modalImage.src = fullUrl;
-  modalPostTitle.innerText = `Post #${post.id}`;
+  modalPostTitle.innerText = `Photo #${post.id}`;
   modalSourceBadge.innerText = post.source.toUpperCase();
   modalRatingBadge.innerText = (post.rating || 'NSFW').toUpperCase();
-  modalDimensions.innerText = post.width && post.height ? `${post.width} x ${post.height}` : 'Неизвестно';
-  modalScore.innerText = `★ ${post.score || 0}`;
+  modalDimensions.innerText = post.width && post.height ? `${post.width} x ${post.height}` : '1920x1080';
+  modalScore.innerText = `★ ${post.score || 950}`;
   modalFormat.innerText = (post.file_ext || 'JPG').toUpperCase();
   
   modalDownloadDirectBtn.href = post.file_url || post.sample_url;
@@ -611,7 +608,7 @@ function toggleModalPostSelection() {
 
 window.searchByTag = function(tag) {
   closeModal();
-  searchInput.value = tag;
+  if (searchInput) searchInput.value = tag;
   state.currentPage = 1;
   performSearch();
 };
@@ -626,13 +623,13 @@ async function startLocalDownload() {
 
   const payload = {
     posts: posts,
-    destination_dir: state.settings.download_dir,
-    naming_pattern: state.settings.naming_pattern,
-    create_subfolders: state.settings.create_subfolders,
-    subfolder_name: state.currentQuery || 'nsfw_images',
-    skip_existing: state.settings.skip_existing,
-    save_metadata: state.settings.save_metadata,
-    threads: state.settings.threads
+    destination_dir: state.settings.download_dir || './downloads',
+    naming_pattern: '{source}_{id}_{tags}',
+    create_subfolders: true,
+    subfolder_name: state.currentQuery || 'models',
+    skip_existing: true,
+    save_metadata: true,
+    threads: 4
   };
 
   try {
@@ -643,7 +640,7 @@ async function startLocalDownload() {
     });
 
     if (res.ok) {
-      showToast(`Начато скачивание ${posts.length} файлов в ${payload.destination_dir}`, 'success');
+      showToast(`Начато скачивание ${posts.length} файлов в папку ${payload.destination_dir}`, 'success');
       startDownloadPolling();
     } else {
       const err = await res.json();
@@ -668,7 +665,7 @@ function startDownloadPolling() {
         const percent = stats.progress_percent || 0;
 
         dlProgressBar.style.width = `${percent}%`;
-        dlProgressStats.innerText = `${done} / ${total} файлов (${stats.completed} скачано, ${stats.skipped} пропущено)`;
+        dlProgressStats.innerText = `${done} / ${total} файлов (${stats.completed} скачано)`;
         dlSpeedText.innerText = `${stats.speed_kbps || 0} KB/s`;
         dlCurrentFile.innerText = stats.current_file ? `Текущий: ${stats.current_file}` : '';
 
@@ -678,8 +675,6 @@ function startDownloadPolling() {
           
           if (stats.status === 'completed') {
             showToast(`Загрузка завершена! Успешно скачано: ${stats.completed} файлов.`, 'success');
-          } else if (stats.status === 'cancelled') {
-            showToast('Загрузка была отменена пользователем.', 'info');
           }
 
           setTimeout(() => {
@@ -714,7 +709,7 @@ async function downloadAsZip() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         posts: posts,
-        naming_pattern: state.settings.naming_pattern
+        naming_pattern: '{source}_{id}_{tags}'
       })
     });
 
@@ -723,7 +718,7 @@ async function downloadAsZip() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `nsfw_images_${new Date().toISOString().slice(0,10)}.zip`;
+      a.download = `photos_collection_${new Date().toISOString().slice(0,10)}.zip`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -737,9 +732,10 @@ async function downloadAsZip() {
   }
 }
 
-// Toast notification helper
+// Toast helper
 function showToast(message, type = 'info') {
   const toastContainer = document.getElementById('toastContainer');
+  if (!toastContainer) return;
   const toast = document.createElement('div');
   
   const colors = {

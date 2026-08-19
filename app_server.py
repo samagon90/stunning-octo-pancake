@@ -14,6 +14,7 @@ from core.providers.manager import ProviderManager
 from core.downloader import DownloadManager
 from core.tag_suggest import suggest_tags, POPULAR_TAGS
 from core.settings import load_settings, save_settings
+from core.scraper_engine import extract_images_from_url
 
 app = FastAPI(title="NSFW Image Hunter & Downloader", version="1.0.0")
 
@@ -84,6 +85,20 @@ async def search_images(
     )
     result = await provider_manager.search(req)
     return result
+
+@app.get("/api/extract-url")
+async def extract_images_endpoint(url: str = Query(..., description="Target webpage URL to grab images from")):
+    """Extract all full-size images from any website or search URL."""
+    if not url:
+        raise HTTPException(status_code=400, detail="Missing url")
+    
+    posts = await extract_images_from_url(url)
+    return {
+        "posts": [p.to_dict() for p in posts],
+        "total": len(posts),
+        "url": url,
+        "errors": [] if posts else ["На указанной странице не удалось обнаружить изображения."]
+    }
 
 @app.get("/api/tags/suggest")
 async def get_tag_suggestions(q: str = "", limit: int = 12):
