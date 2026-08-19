@@ -4,6 +4,9 @@ from typing import Dict, List, Optional, Any
 from core.models import Post, SearchRequest
 from core.translit import is_cyrillic, expand_query_for_booru, transliterate
 from core.providers.base import BaseProvider
+from core.providers.adult_meta import AdultMetaSearchProvider
+from core.providers.coomer import CoomerModelProvider
+from core.providers.erome import EroMeProvider
 from core.providers.universal_search import UniversalWebSearchProvider
 from core.providers.web_engines import search_bing_async, search_yahoo_images
 from core.providers.reddit import RedditImageProvider
@@ -22,6 +25,9 @@ logger = logging.getLogger(__name__)
 class ProviderManager:
     def __init__(self):
         self.providers: Dict[str, BaseProvider] = {
+            "adult_meta": AdultMetaSearchProvider(),
+            "coomer": CoomerModelProvider(),
+            "erome": EroMeProvider(),
             "web": UniversalWebSearchProvider(),
             "reddit": RedditImageProvider(),
             "realbooru": RealbooruProvider(),
@@ -37,10 +43,13 @@ class ProviderManager:
 
     def get_providers_list(self) -> List[Dict[str, str]]:
         return [
-            {"id": "web", "name": "🌐 Поиск в интернете (Яндекс, Bing, Yahoo, DuckDuckGo, Reddit)"},
-            {"id": "all", "name": "✨ Все источники сразу (Интернет + Все Booru)"},
+            {"id": "adult_meta", "name": "👑 ПОИСК МОДЕЛЕЙ И ФОТОСЕТОВ 18+ (Coomer + OnlyFans + EroMe + Bing + Reddit)"},
+            {"id": "coomer", "name": "⭐ Coomer / OnlyFans / Fansly (Архив моделей)"},
+            {"id": "erome", "name": "🔥 EroMe (Альбомы и фотосеты)"},
+            {"id": "web", "name": "🌐 Поиск в интернете (Яндекс, Bing, Yahoo, DuckDuckGo)"},
             {"id": "reddit", "name": "🔴 Reddit (NSFW, Косплей, Фото)"},
             {"id": "realbooru", "name": "Realbooru (Косплей и реальные фото)"},
+            {"id": "all", "name": "✨ Все источники сразу"},
             {"id": "rule34", "name": "Rule34 (xxx)"},
             {"id": "gelbooru", "name": "Gelbooru (Аниме)"},
             {"id": "danbooru", "name": "Danbooru"},
@@ -59,41 +68,38 @@ class ProviderManager:
         query = req.query.strip()
         booru_query = expand_query_for_booru(query) if is_cyrillic(query) else query
 
-        if source in ("all", "web", "meta"):
-            # Query web engines + reddit + realbooru concurrently
-            active_tasks = [
-                self.providers["web"].search(query, req.page, req.limit, req.rating),
-                self.providers["reddit"].search(query, req.page, req.limit // 2, req.rating),
-                self.providers["realbooru"].search(booru_query, req.page, req.limit // 2, req.rating)
-            ]
-            
-            if source == "all":
-                active_tasks.append(self.providers["rule34"].search(booru_query, req.page, req.limit // 2, req.rating))
-                active_tasks.append(self.providers["gelbooru"].search(booru_query, req.page, req.limit // 2, req.rating))
+        if source in ("adult_meta", "meta", "web", "all"):
+            # Use multi-engine adult aggregator
+            active_provider = self.providers.get(source) or self.providers["adult_meta"]
+            try:
+                results = await active_provider.search(query, req.page, req.limit, req.rating)
+            except Exception as e:
+                errors.append(f"Ошибка поиска: {str(e)}")
 
-            gathered = await asyncio.gather(*active_tasks, return_exceptions=True)
-            for res in gathered:
-                if isinstance(res, list):
-                    results.extend(res)
-                elif isinstance(res, Exception):
-                    errors.append(str(res))
+            # If booru requested in all
+            if source == "all":
+                try:
+                    booru_res = await self.providers["realbooru"].search(booru_query, req.page, req.limit // 2, req.rating)
+                    results.extend(booru_res)
+                except Exception:
+                    pass
             
             if not results and not errors:
-                errors.append(f"По запросу '{query}' не найдено изображений. Попробуйте изменить формулировку (например: {transliterate(query)}).")
+                errors.append(f"По запросу '{query}' ничего не найдено. Попробуйте написать имя на латинице (например: {transliterate(query)}) или выбрать другой источник.")
         else:
             provider = self.providers.get(source)
             if not provider:
-                provider = self.providers["web"]
+                provider = self.providers["adult_meta"]
             
-            active_q = query if provider.name in ("web", "universal_web", "reddit") else booru_query
+            active_q = query if provider.name in ("adult_meta", "coomer", "erome", "web", "universal_web", "reddit") else booru_query
             
             try:
                 results = await provider.search(active_q, req.page, req.limit, req.rating)
             except Exception as e:
                 errors.append(f"Ошибка источника {provider.display_name}: {str(e)}")
-                # Try universal web search fallback
+                # Try fallback to adult_meta
                 try:
-                    fallback_res = await self.providers["web"].search(query, req.page, req.limit, req.rating)
+                    fallback_res = await self.providers["adult_meta"].search(query, req.page, req.limit, req.rating)
                     results.extend(fallback_res)
                 except Exception:
                     pass
