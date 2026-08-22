@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43d0ba85f480e21287a394c77917a4f7, type: 3}
+  m_Name: Ветряной сон
+  m_EditorClassIdentifier: 
+  worldId: "w4"
+  worldName: "\u0412\u0435\u0442\u0440\u044F\u043D\u043E\u0439 \u0441\u043E\u043D"
+  themeElement: 1
+  description: "\u0411\u0435\u0441\u043A\u043E\u043D\u0435\u0447\u043D\u043E\u0435 \u043D\u0435\u0431\u043E, \u043F\u043E \u043A\u043E\u0442\u043E\u0440\u043E\u043C\u0443 \u0433\u0440\u0435\u043C\u0438\u0442 \u0441\u043E\u043D \u0417\u0435\u0432\u0441\u0430."
+  levels:
+    - {fileID: 11400000, guid: e0628840143ce64cebe68c66f9e348e8, type: 3}
+    - {fileID: 11400000, guid: da1c44b88fc4d891b41401cb1623dc72, type: 3}
+    - {fileID: 11400000, guid: 01a807ed42b2635ca6bf3e4876adbb30, type: 3}
+    - {fileID: 11400000, guid: d5dfc282df6fe660a5ba4a43c7de414d, type: 3}
+    - {fileID: 11400000, guid: dca9cfceb35fae2dde8c55031f6b3479, type: 3}
+    - {fileID: 11400000, guid: fb7f215e194961b16a8e0b4ea1616c91, type: 3}
+    - {fileID: 11400000, guid: f8b26003331589f713d9b7a9e08f1e2f, type: 3}
+    - {fileID: 11400000, guid: 592486b6081d2e16749a7e2e02673cec, type: 3}
+    - {fileID: 11400000, guid: d95c77fcba50b49cb14e5d2fbd875b51, type: 3}
+    - {fileID: 11400000, guid: 01de49c37b5c5938126dbd952946b3da, type: 3}
+    - {fileID: 11400000, guid: 51e46968ed2761ac3befdb036b167ff6, type: 3}
+    - {fileID: 11400000, guid: 712fc9482242825d535b3e99c0971842, type: 3}
+    - {fileID: 11400000, guid: 72e47cbb24d34d397b861397f0669860, type: 3}
+    - {fileID: 11400000, guid: 0cfafc1ec60b86c84cbd153daf2eff36, type: 3}
+    - {fileID: 11400000, guid: e448d1e5a3e8cc9b1caba9d2f93b8dbd, type: 3}
+  bossHero: {fileID: 11400000, guid: 14b8daf8971d2d67e5d6e21254179be7, type: 3}

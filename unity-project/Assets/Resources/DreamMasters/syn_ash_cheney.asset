@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a9a86503e18e4181e74b423f77294c9f, type: 3}
+  m_Name: syn_ash_cheney
+  m_EditorClassIdentifier: 
+  heroA: {fileID: 11400000, guid: 0c1f61b3f2e5d63903ea66ba942e4eb1, type: 3}
+  heroB: {fileID: 11400000, guid: 7056c31a43f5497c9b25427f341a5306, type: 3}
+  bonusType: 0
+  value: 0.2

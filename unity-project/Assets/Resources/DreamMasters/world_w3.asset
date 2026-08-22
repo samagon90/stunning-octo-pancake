@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43d0ba85f480e21287a394c77917a4f7, type: 3}
+  m_Name: Каменный сон
+  m_EditorClassIdentifier: 
+  worldId: "w3"
+  worldName: "\u041A\u0430\u043C\u0435\u043D\u043D\u044B\u0439 \u0441\u043E\u043D"
+  themeElement: 2
+  description: "\u0421\u043E\u043D, \u043E\u0431\u0440\u0430\u0442\u0438\u0432\u0448\u0438\u0439\u0441\u044F \u0432 \u043A\u0430\u043C\u0435\u043D\u044C. \u041D\u044E\u0439\u0432\u0430 \u0447\u0438\u043D\u0438\u0442 \u0435\u0433\u043E \u0438\u0437\u043D\u0443\u0442\u0440\u0438."
+  levels:
+    - {fileID: 11400000, guid: 57f2670d5b83bfbacc55981676292174, type: 3}
+    - {fileID: 11400000, guid: 9ae873e308fbc9803aa0e7ccbc3269f6, type: 3}
+    - {fileID: 11400000, guid: 83eb9d4697360b0bb3f8ef6a18a3b271, type: 3}
+    - {fileID: 11400000, guid: 1d045e687a45d355186532aa0db2cc19, type: 3}
+    - {fileID: 11400000, guid: af9d5f20017c1ff54556c094cac9e832, type: 3}
+    - {fileID: 11400000, guid: 4567f604de1a76be0be2200258b9ea0e, type: 3}
+    - {fileID: 11400000, guid: 0a49a6251e6903f5ff7a236bc9920d51, type: 3}
+    - {fileID: 11400000, guid: da068ce8a805ad2fc05774e5fae12fad, type: 3}
+    - {fileID: 11400000, guid: dc4c9a148ac5532e4f70a3ec82334ca2, type: 3}
+    - {fileID: 11400000, guid: 54e5d44f3e4651f0b56703ad8f5ab202, type: 3}
+    - {fileID: 11400000, guid: c61d88059dca872a3aeb02553e7ae3ec, type: 3}
+    - {fileID: 11400000, guid: bd25384f0584a391e124c596c75cdd1d, type: 3}
+    - {fileID: 11400000, guid: 81aa015453a324ab3478fd685270cdc0, type: 3}
+    - {fileID: 11400000, guid: 4e2b92d25734fae993a3e252c60ce0bd, type: 3}
+    - {fileID: 11400000, guid: 0dd1ca8d8a5786306918a70811d1f9eb, type: 3}
+  bossHero: {fileID: 11400000, guid: f1bdaf92b88a68bf9f9f44ae73a89f9d, type: 3}

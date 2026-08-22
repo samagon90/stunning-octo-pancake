@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Мастера Снов — веб-демо среза (ландшафт)</title>
+<style>
+  html,body{margin:0;height:100%;background:#070a14;overflow:hidden;font-family:'Segoe UI',Arial,sans-serif;color:#e8e8f0;user-select:none;-webkit-user-select:none;touch-action:none}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{background:#141a2e;box-shadow:0 0 80px #000c}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="cv"></canvas></div>
+<script>
+"use strict";
+/* ============================================================
+   МАСТЕРА СНОВ: ВОЗРОЖДЕНИЕ — веб-демо вертикального среза.
+   ЛАНДШАФТ (1920×1080) — как в финальной Android-версии.
+   Зеркалит формулы Unity-проекта: стихии (Огонь>Воздух>Земля>Вода,
+   ±25%/−20%), 4 героя, 4 умения, волны, боссы, автобой, ×2,
+   скриптованный проигрыш первого уровня (канон оригинала).
+   ============================================================ */
+
+// ---------- Экран (горизонтальный телефон) ----------
+const VW = 1920, VH = 1080;
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+cv.width = VW; cv.height = VH;
+function fit(){
+  const s = Math.min(innerWidth / VW, innerHeight / VH);
+  cv.style.width = Math.floor(VW * s) + 'px';
+  cv.style.height = Math.floor(VH * s) + 'px';
+}
+addEventListener('resize', fit); fit();
+function pt(e){ const r = cv.getBoundingClientRect(); return {x:(e.clientX-r.left)/r.width*VW, y:(e.clientY-r.top)/r.height*VH}; }
+
+// ---------- Звук (WebAudio, аналог наших SFX) ----------
+let AC = null;
+function audio(){ if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return AC; }
+function beep(freq, dur, type, vol){
+  const ac = audio(); if(!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type||'square'; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol||0.12, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+  o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + dur);
+}
+const SFX = {
+  click(){ beep(880, .06); },
+  hit(){ beep(140, .1, 'triangle', .15); },
+  crit(){ beep(180, .12, 'triangle', .18); beep(1320, .15, 'sine', .08); },
+  cast(){ beep(520, .18, 'sine', .1); },
+  heal(){ beep(523, .1, 'sine', .1); setTimeout(()=>beep(784,.14,'sine',.1), 90); },
+  win(){ [523,659,784,1046].forEach((f,i)=>setTimeout(()=>beep(f,.16,'square',.1), i*130)); },
+  lose(){ [392,330,262].forEach((f,i)=>setTimeout(()=>beep(f,.22,'sawtooth',.1), i*160)); },
+  boss(){ beep(90, .5, 'sawtooth', .2); }
+};
+
+// ---------- Канон стихий ----------
+const EL = { fire:{c:'#ee5133',n:'Огонь'}, air:{c:'#c2e0fa',n:'Воздух'}, earth:{c:'#8cb859',n:'Земля'}, water:{c:'#4d8cf2',n:'Вода'} };
+const DOM = { fire:'air', air:'earth', earth:'water', water:'fire' };
+function elMult(a, d){ return DOM[a]===d ? 1.25 : (DOM[d]===a ? 0.8 : 1); }
+function dmgCalc(atk, def, k, ea, ed, crit){
+  let d = atk * k * elMult(ea, ed) * 100 / (100 + Math.max(0, def));
+  if (crit) d *= 1.5;
+  return Math.max(1, d);
+}
+
+// ---------- Герои (стартовая четвёрка оригинала) ----------
+function mkAb(n, cd, t, k, r){ return { n, cd, t, k:k||1, r:r||0, rt:0 }; }
+const ROSTER = [
+  { id:'frank',  name:'Фрэнк',  el:'earth', role:'Танк',    range:85,  hp:1600, atk:90,  def:110, spd:130, crit:.05,
+    ab:[ mkAb('Удар оземь',10,'aoe',1.2,160), mkAb('Каменная кожа',15,'buff',.15), mkAb('Провокация',8,'nuk',1.8), mkAb('Землетрясение',18,'aoe',2,220) ] },
+  { id:'ash',    name:'Эш',    el:'fire',  role:'Боец',    range:160, hp:900,  atk:150, def:50,  spd:160, crit:.15,
+    ab:[ mkAb('Огненный шар',8,'nuk',1.6), mkAb('Вспышка пламени',12,'aoe',1.3,180), mkAb('Огненная струя',10,'line',1.4), mkAb('Ярость Эша',20,'nuk',3.0) ] },
+  { id:'aimer',  name:'Аймер', el:'water', role:'Поддержка',range:250, hp:800,  atk:100, def:40,  spd:140, crit:.05,
+    ab:[ mkAb('Слёзы исцеления',8,'heal',1.5), mkAb('Очищение',12,'heal',2.0), mkAb('Благословение',15,'buff',.20), mkAb('Водяной хлыст',10,'nuk',1.6) ] },
+  { id:'cheney', name:'Чейни', el:'water', role:'Боец',    range:220, hp:950,  atk:135, def:45,  spd:150, crit:.12,
+    ab:[ mkAb('Волна Чейни',8,'nuk',1.5), mkAb('Брызги сямисена',12,'aoe',1.3,180), mkAb('Прилив',10,'line',1.4), mkAb('Шторм',20,'aoe',2.6,240) ] },
+];
+
+// ---------- Уровни (первые три мира 1) ----------
+const MOB = (n,el,hp,atk,def)=>({n,el,hp,atk,def,crit:.05,boss:false});
+const BOSSDARK = {n:'Повелитель Мрака',el:'fire',hp:4200,atk:95,def:80,crit:.05,boss:true};
+const LEVELS = [
+  { name:'1. Первый вдох сна', waves:[ [ {...MOB('Сновидец','fire',380,55,20), cnt:2} ], [ {...BOSSDARK, cnt:1} ] ], scripted:true },
+  { name:'2. Тропа сновидцев', waves:[ [ {...MOB('Сновидец','fire',380,55,20), cnt:3} ],
+                                       [ {...MOB('Сновидец','fire',520,68,26), cnt:2}, {n:'Каменный страж I',el:'earth',hp:600,atk:48,def:35,crit:.05,boss:false, cnt:1} ],
+                                       [ {n:'Сновидец II',el:'fire',hp:513,atk:69,def:26,crit:.05,boss:false, cnt:1}, {n:'Кошмар',el:'fire',hp:2600,atk:110,def:60,crit:.05,boss:true, cnt:1} ] ] },
+  { name:'3. Шёпот в тумане',  waves:[ [ {...MOB('Сильфида I','air',340,62,15), cnt:3} ],
+                                       [ {n:'Сильфида I',el:'air',hp:340,atk:62,def:15,crit:.05,boss:false, cnt:2}, {...MOB('Сновидец','fire',380,55,20), cnt:2} ],
+                                       [ {n:'Келпи I',el:'water',hp:420,atk:58,def:18,crit:.05,boss:false, cnt:2}, {n:'Древний Кошмар',el:'air',hp:5200,atk:170,def:90,crit:.05,boss:true, cnt:1} ] ] },
+];
+
+// ---------- Состояние ----------
+let scene = 'menu';
+let levelIdx = 0, team = [], enemies = [], waveIdx = 0, waveTimer = 0, spawnQueue = [];
+let floats = [], autoMode = false, speed2 = false, timeScale = 1;
+let sel = 1;
+let battleTime = 0, battleOver = null, hudBtns = [], menuBtns = [];
+let unlocked = 1, rewards = null;
+
+// Игровое поле (ландшафт): арена слева/по центру, HUD по краям
+const ARENA = { x0:40, y0:70, x1:1120, y1:920 }; // зона боя
+const HUD_R = { x0:1160 };                        // правая колонка HUD
+
+function resetTeam(){
+  team = ROSTER.map((h,i)=>({
+    ...h, maxhp:h.hp, alive:true, team:0,
+    x: ARENA.x0 + 140 + i*170, y: ARENA.y1 - 120, r: 40,
+    atkT: 0, ab: h.ab.map(a=>({...a, rt:0})), facing:1, wp:null, moving:false
+  }));
+}
+function spawnEnemy(tpl){
+  enemies.push({ ...tpl, maxhp:tpl.hp, alive:true, team:1,
+    x: ARENA.x1 - 160 - Math.random()*160, y: ARENA.y0 + 160 + Math.random()*(ARENA.y1-ARENA.y0-320),
+    r: tpl.boss? 74: 38, atkT: Math.random(), facing:-1 });
+  if (tpl.boss) SFX.boss();
+}
+function startBattle(i){
+  levelIdx = i; resetTeam(); enemies = []; floats = [];
+  waveIdx = 0; battleTime = 0; battleOver = null; rewards = null; autoMode = false;
+  beginWave(); scene = 'battle';
+}
+function beginWave(){
+  const lvl = LEVELS[levelIdx];
+  if (waveIdx >= lvl.waves.length){ endBattle(true); return; }
+  spawnQueue = [];
+  lvl.waves[waveIdx].forEach(g => { for(let k=0;k<g.cnt;k++) spawnQueue.push({...g, delay: k*0.7}); });
+  waveTimer = 0;
+}
+function endBattle(win){
+  if (battleOver) return;
+  battleOver = { win, scripted: !!LEVELS[levelIdx].scripted && !win };
+  if (win){
+    SFX.win();
+    if (levelIdx+1 >= unlocked) unlocked = Math.min(LEVELS.length, levelIdx+2);
+    rewards = { gold: 150+40*levelIdx, cr: 15+3*levelIdx, sh: 8+2*levelIdx, run: 6 };
+  } else SFX.lose();
+}
+
+// ---------- Логика боя ----------
+function nearest(from, list){ let b=null, bd=1e9; for(const u of list){ if(!u.alive) continue; const d=(u.x-from.x)**2+(u.y-from.y)**2; if(d<bd){bd=d;b=u;} } return b; }
+function mostWounded(list){ let b=null, lo=1; for(const u of list){ if(!u.alive) continue; const r=u.hp/u.maxhp; if(r<lo){lo=r;b=u;} } return b; }
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function addFloat(x,y,txt,color,big){ floats.push({x,y,txt,color,t:0,big:!!big}); }
+
+function castAbility(u, ab, manual){
+  const foes = u.team===0? enemies: team, mates = u.team===0? team: enemies;
+  ab.rt = ab.cd;
+  if (ab.t==='heal'){
+    const w = mostWounded(mates)||u;
+    w.hp = Math.min(w.maxhp, w.hp + u.atk*ab.k);
+    addFloat(w.x, w.y-60, '+'+Math.round(u.atk*ab.k), '#7dff9a');
+    SFX.heal();
+  } else if (ab.t==='buff'){
+    for(const m of mates) if(m.alive){ m.hp=Math.min(m.maxhp, m.hp+m.maxhp*ab.k); }
+    addFloat(u.x, u.y-80, '★ '+ab.n, '#ffd76a'); SFX.heal();
+  } else if (ab.t==='aoe'){
+    for(const f of foes) if(f.alive && dist(f,u)<ab.r+60) hurt(f, u, ab.k, true);
+    addFloat(u.x, u.y-80, ab.n, EL[u.el].c); SFX.cast();
+  } else { // nuk / line
+    const t = nearest(u, foes); if(t) hurt(t, u, ab.k, true);
+    addFloat(u.x, u.y-80, ab.n, EL[u.el].c); SFX.cast();
+  }
+}
+function hurt(t, from, k, isAb){
+  const crit = Math.random() < from.crit;
+  let d = dmgCalc(from.atk, t.def, k, from.el, t.el, crit);
+  if (LEVELS[levelIdx].scripted){
+    if (t.team===1) d *= 0.08;     // босс завязки почти неуязвим (канон)
+    else d *= 4.5;                 // герои падают — но быстро
+  }
+  t.hp -= d;
+  addFloat(t.x + (Math.random()*40-20), t.y - t.r - 16, Math.round(d), crit? '#ff9a3d' : (t.team===0? '#ff5a5a':'#ffffff'), crit);
+  crit? SFX.crit() : SFX.hit();
+  if (t.hp <= 0){ t.hp = 0; t.alive = false; }
+}
+
+function tick(dt){
+  battleTime += dt;
+  if (spawnQueue.length){
+    waveTimer += dt;
+    while (spawnQueue.length && spawnQueue[0].delay <= waveTimer) spawnEnemy(spawnQueue.shift());
+  } else if (!enemies.some(e=>e.alive)){
+    waveIdx++; beginWave();
+  }
+  for(const u of [...team, ...enemies]) for(const ab of u.ab||[]) if(ab.rt>0) ab.rt -= dt;
+
+  for(const u of team){
+    if(!u.alive) continue;
+    let moved = false;
+    if (u.wp){
+      const d = Math.hypot(u.wp.x-u.x, u.wp.y-u.y);
+      if (d < 20) u.wp = null;
+      else { u.x += (u.wp.x-u.x)/d*u.spd*dt; u.y += (u.wp.y-u.y)/d*u.spd*dt; moved = true; }
+    }
+    const t = nearest(u, enemies);
+    if (t){
+      const dd = dist(u, t);
+      if (dd > u.range){
+        if (!u.wp || autoMode){ u.x += (t.x-u.x)/dd*u.spd*dt*.7; u.y += (t.y-u.y)/dd*u.spd*dt*.7; moved=true; }
+      } else {
+        u.atkT -= dt;
+        if (u.atkT <= 0){ u.atkT = 1/(u.role==='Танк'? .8 : 1.05); hurt(t, u, 1, false); u.facing = Math.sign(t.x-u.x)||1; }
+      }
+      if (autoMode || u.role==='Поддержка'){
+        for(const ab of u.ab) if (ab.rt<=0){ castAbility(u, ab, false); break; }
+      }
+    }
+    u.moving = moved;
+  }
+  for(const e of enemies){
+    if(!e.alive) continue;
+    const t = nearest(e, team);
+    if (!t) continue;
+    const dd = dist(e, t);
+    if (dd > (e.boss? 95: 75)){ e.x += (t.x-e.x)/dd*105*dt; e.y += (t.y-e.y)/dd*105*dt; }
+    else { e.atkT -= dt; if (e.atkT<=0){ e.atkT = 1/0.9; hurt(t, e, 1, false); } }
+  }
+  for(const f of floats){ f.t += dt; f.y -= 60*dt; }
+  floats = floats.filter(f=>f.t < 0.9);
+  if (!team.some(u=>u.alive)) endBattle(false);
+}
+
+// ---------- Рендер ----------
+function circle(x,y,r,c,border){ ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fillStyle=c; ctx.fill(); if(border){ctx.lineWidth=5;ctx.strokeStyle=border;ctx.stroke();} }
+function shade(hex, amt){
+  const n = parseInt(hex.slice(1),16);
+  const r=Math.min(255,Math.max(0,(n>>16)+amt)), g=Math.min(255,Math.max(0,((n>>8)&255)+amt)), b=Math.min(255,Math.max(0,(n&255)+amt));
+  return `rgb(${r},${g},${b})`;
+}
+function rrect(x,y,w,h,r,fill,stroke){ ctx.beginPath(); ctx.roundRect(x,y,w,h,r); if(fill){ctx.fillStyle=fill;ctx.fill();} if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=3;ctx.stroke();} }
+
+function drawArena(){
+  const g = ctx.createLinearGradient(0,0,0,VH);
+  g.addColorStop(0,'#1a2340'); g.addColorStop(.5,'#141a2e'); g.addColorStop(1,'#0d1224');
+  ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH);
+  ctx.globalAlpha=.06;
+  for(let i=0;i<7;i++){ const t=Date.now()/9000+i*1.7; circle(ARENA.x0+520+Math.cos(t)*(220+i*30), 480+Math.sin(t*1.3)*140, 130+i*22, i%2? '#4d8cf2':'#ee5133'); }
+  ctx.globalAlpha=1;
+  ctx.fillStyle='#1c2440'; ctx.beginPath(); ctx.roundRect(ARENA.x0, ARENA.y0, ARENA.x1-ARENA.x0, ARENA.y1-ARENA.y0, 36); ctx.fill();
+  ctx.strokeStyle='#2c3a66'; ctx.lineWidth=3; ctx.stroke();
+}
+function drawUnit(u){
+  if(!u.alive) return;
+  const bob = u.moving? Math.sin(Date.now()/90+u.x)*4 : Math.sin(Date.now()/500+u.x)*2;
+  const y = u.y + bob;
+  ctx.globalAlpha=.35; circle(u.x, u.y+u.r*.85, u.r*.8, '#000'); ctx.globalAlpha=1;
+  const col = EL[u.el].c;
+  const dark = u.team===1? shade(col,-45): col;
+  circle(u.x, y, u.r, dark, u.team===0? '#e8e8f0':'#3a2a2a');
+  circle(u.x, y - u.r*.55, u.r*.42, shade(col, 70));
+  ctx.save(); ctx.translate(u.x + u.facing*u.r*.9, y); ctx.rotate(u.facing*.5);
+  ctx.fillStyle = u.role==='Поддержка'? '#ffd76a':'#c9cdd8'; ctx.fillRect(0,-4, u.r*1.2, 8); ctx.restore();
+  if (u.boss){ ctx.fillStyle='#f5c542'; ctx.beginPath(); ctx.moveTo(u.x-24,y-u.r-22); ctx.lineTo(u.x-12,y-u.r-42); ctx.lineTo(u.x,y-u.r-22); ctx.lineTo(u.x+12,y-u.r-42); ctx.lineTo(u.x+24,y-u.r-22); ctx.closePath(); ctx.fill(); }
+  const bw = u.boss? 190: 96;
+  ctx.fillStyle='#000a'; ctx.fillRect(u.x-bw/2, y-u.r-(u.boss?62:40), bw, 11);
+  ctx.fillStyle= u.team===0? '#6dff8a':'#ff6a5a';
+  ctx.fillRect(u.x-bw/2, y-u.r-(u.boss?62:40), bw*Math.max(0,u.hp/u.maxhp), 11);
+  ctx.font = '600 20px Segoe UI'; ctx.textAlign='center';
+  ctx.fillStyle = u.boss? '#f5c542' : '#dfe3f0';
+  ctx.fillText(u.name, u.x, y+u.r+26);
+}
+function drawFloats(){
+  for(const f of floats){
+    ctx.globalAlpha = Math.max(0, 1 - f.t/.9);
+    ctx.font = (f.big? '800 44px':'700 32px')+' Segoe UI';
+    ctx.textAlign='center'; ctx.fillStyle=f.color;
+    ctx.strokeStyle='#0009'; ctx.lineWidth=5; ctx.strokeText(f.txt, f.x, f.y); ctx.fillText(f.txt, f.x, f.y);
+  }
+  ctx.globalAlpha=1;
+}
+
+// ---------- HUD (ландшафт: левая колонка герои, правая — умения) ----------
+function drawBattleHUD(){
+  hudBtns = [];
+  // рамки панелей
+  rrect(20, 70, 92, ARENA.y1-70-16, 24, '#0f1526cc', '#2c3a66');   // левая: портреты
+  rrect(HUD_R.x0, 70, VW-HUD_R.x0-20, ARENA.y1-70-16, 24, '#0f1526cc', '#2c3a66'); // правая: умения/кнопки
+
+  // портреты (слева, колонкой)
+  team.forEach((h,i)=>{
+    const x = 66, y = 130 + i*180;
+    const s = (i===sel);
+    circle(x, y, s? 44:37, EL[h.el].c, h.alive? '#e8e8f0':'#555');
+    ctx.font='600 19px Segoe UI'; ctx.textAlign='center';
+    ctx.fillStyle= s? '#fff':'#aab';
+    ctx.fillText(h.name, x, y + (s?62:56));
+    if (!h.alive){ ctx.font='700 28px Segoe UI'; ctx.fillStyle='#ff5a5a'; ctx.fillText('✕', x, y+9); }
+    hudBtns.push({x:x-70,y:y-70,w:140,h:150, act:'sel', i});
+  });
+  ctx.font='500 17px Segoe UI'; ctx.fillStyle='#667'; ctx.textAlign='center';
+  ctx.fillText('отряд', 66, ARENA.y1-30);
+
+  // умения выбранного (справа, 2×2) + большой палец-режим
+  const h = team[sel];
+  h.ab.forEach((ab,i)=>{
+    const x = HUD_R.x0 + 40 + (i%2)*150, y = 120 + Math.floor(i/2)*150;
+    const ready = ab.rt<=0 && h.alive;
+    rrect(x, y, 130, 130, 20, ready? '#1f2b52':'#141a30', ready? EL[h.el].c : '#333');
+    ctx.font='600 16px Segoe UI'; ctx.textAlign='center';
+    ctx.fillStyle= ready? '#e8e8f0':'#667';
+    ctx.fillText(ab.n.split(' ')[0].slice(0,10), x+65, y+68);
+    if (ab.rt>0){
+      const k = ab.rt/ab.cd;
+      ctx.fillStyle='#000a'; ctx.fillRect(x, y, 130, 130*k);
+      ctx.font='800 36px Segoe UI'; ctx.fillStyle='#fff'; ctx.fillText(Math.ceil(ab.rt), x+65, y+78);
+    }
+    hudBtns.push({x,y,w:130,h:130,act:'ab', i});
+  });
+  // авто / ×2 (правая колонка, ниже умений)
+  rrect(HUD_R.x0+40, 440, 200, 84, 18, autoMode? '#2e7d4f':'#1f2b52', '#2c3a66');
+  ctx.font='700 30px Segoe UI'; ctx.fillStyle='#fff'; ctx.fillText(autoMode?'АВТО ✓':'АВТО', HUD_R.x0+140, 493);
+  hudBtns.push({x:HUD_R.x0+40,y:440,w:200,h:84,act:'auto'});
+  rrect(HUD_R.x0+40, 544, 200, 84, 18, speed2? '#2e7d4f':'#1f2b52', '#2c3a66');
+  ctx.font='700 30px Segoe UI'; ctx.fillStyle='#fff'; ctx.fillText('×2', HUD_R.x0+140, 597);
+  hudBtns.push({x:HUD_R.x0+40,y:544,w:200,h:84,act:'x2'});
+
+  // подсказка (правая колонка, снизу)
+  ctx.font='500 19px Segoe UI'; ctx.fillStyle='#8f9ac0'; ctx.textAlign='left';
+  const hintX = HUD_R.x0+36, hintY = 700;
+  ['Управление:','• тап по арене — идти','• портрет — выбрать героя','• кнопки — умения','• АВТО — автобой','• ×2 — ускорение','(в Unity — джойстик','и тач-кнопки)'].forEach((s,i)=>ctx.fillText(s, hintX, hintY+i*30));
+
+  // верхняя строка: уровень и волна
+  const lvl = LEVELS[levelIdx];
+  rrect(ARENA.x0+16, 8, ARENA.x1-ARENA.x0-32, 52, 16, '#0f1526cc');
+  ctx.font='700 28px Segoe UI'; ctx.fillStyle='#dfe3f0'; ctx.textAlign='center';
+  ctx.fillText(`${lvl.name}  •  волна ${Math.min(waveIdx+1,lvl.waves.length)}/${lvl.waves.length}`, (ARENA.x0+ARENA.x1)/2, 44);
+}
+function drawResult(){
+  if (!battleOver) return;
+  ctx.fillStyle='#050810cc'; ctx.fillRect(0,0,VW,VH);
+  rrect(460, 300, 1000, 480, 30, '#10182e', '#2c3a66');
+  ctx.textAlign='center';
+  ctx.font='800 64px Segoe UI';
+  ctx.fillStyle = battleOver.win? '#6dff8a' : (battleOver.scripted? '#ffd76a':'#ff6a5a');
+  ctx.fillText(battleOver.win? 'ПОБЕДА!' : (battleOver.scripted? 'Так задумано…':'Поражение'), VW/2, 400);
+  ctx.font='600 32px Segoe UI'; ctx.fillStyle='#dfe3f0';
+  if (battleOver.win && rewards){
+    ctx.fillText(`+${rewards.gold} золота   +${rewards.cr} кристаллов   +${rewards.sh} осколков   +${rewards.run} рун`, VW/2, 470);
+  } else if (battleOver.scripted){
+    ctx.fillText('Первый сон всегда проигрывают. Пробуждайся, Мастер!', VW/2, 470);
+  } else {
+    ctx.fillText('Прокачай героев и вернись.', VW/2, 460);
+  }
+  rrect(540, 560, 380, 110, 22, '#1f2b52', '#4d8cf2');
+  ctx.font='700 36px Segoe UI'; ctx.fillStyle='#fff'; ctx.fillText('Ещё раз', 730, 628);
+  hudBtns.push({x:540,y:560,w:380,h:110,act:'retry'});
+  rrect(1000, 560, 380, 110, 22, '#1f2b52', '#4d8cf2');
+  ctx.fillText('В меню', 1190, 628);
+  hudBtns.push({x:1000,y:560,w:380,h:110,act:'menu'});
+}
+function drawMenu(){
+  const g = ctx.createLinearGradient(0,0,0,VH);
+  g.addColorStop(0,'#131b38'); g.addColorStop(1,'#0b1020');
+  ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH);
+  ctx.globalAlpha=.08;
+  const t=Date.now()/8000;
+  for(let i=0;i<9;i++) circle(500+Math.cos(t+i)*330, 540+Math.sin(t*1.2+i*2)*300, 120+i*26, i%2?'#ee5133':'#4d8cf2');
+  ctx.globalAlpha=1;
+  // левая половина: заголовок + отряд
+  ctx.textAlign='center';
+  ctx.font='900 92px Segoe UI'; ctx.fillStyle='#e8ecff';
+  ctx.fillText('МАСТЕРА СНОВ', 480, 220);
+  ctx.font='600 30px Segoe UI'; ctx.fillStyle='#8f9ac0';
+  ctx.fillText('возрождение • веб-демо среза', 480, 282);
+  ROSTER.forEach((h,i)=>{
+    const x = 180 + (i%2)*300, y = 470 + Math.floor(i/2)*300;
+    circle(x, y, 60, EL[h.el].c, '#e8e8f0');
+    circle(x, y-32, 26, shade(EL[h.el].c, 70));
+    ctx.font='600 26px Segoe UI'; ctx.fillStyle='#dfe3f0'; ctx.fillText(h.name, x, y+100);
+    ctx.font='500 21px Segoe UI'; ctx.fillStyle=EL[h.el].c; ctx.fillText(EL[h.el].n+' • '+h.role, x, y+130);
+  });
+  // правая половина: уровни
+  menuBtns = [];
+  ctx.textAlign='left';
+  ctx.font='700 34px Segoe UI'; ctx.fillStyle='#dfe3f0';
+  ctx.fillText('Первый сон — кампания', 1050, 220);
+  LEVELS.forEach((l,i)=>{
+    const y = 270 + i*200, open = i < unlocked;
+    rrect(1050, y, 810, 160, 24, open? '#1f2b52':'#141a30', open? '#4d8cf2':'#2c3a66');
+    ctx.font='700 36px Segoe UI'; ctx.fillStyle= open? '#fff':'#556';
+    ctx.fillText(open? l.name : l.name+' — закрыт', 1090, y+66);
+    ctx.font='500 24px Segoe UI'; ctx.fillStyle= open? '#8f9ac0':'#445';
+    ctx.fillText(open? (l.scripted? 'канон: этот бой проигрывается':'обычный уровень') : 'пройдите предыдущий', 1090, y+114);
+    if (open) menuBtns.push({x:1050,y,w:810,h:160,act:'lvl',i});
+  });
+  ctx.font='500 22px Segoe UI'; ctx.fillStyle='#667'; ctx.textAlign='center';
+  ctx.fillText('Полная версия — Unity/Android: 9 миров, 14 героев, арена, гача, чат', VW/2, VH-36);
+}
+function drawBattle(){
+  drawArena();
+  for(const e of enemies) drawUnit(e);
+  for(const u of team) drawUnit(u);
+  drawFloats();
+  drawBattleHUD();
+  drawResult();
+}
+
+// ---------- Ввод ----------
+function hit(p,b){ return p.x>=b.x && p.x<=b.x+b.w && p.y>=b.y && p.y<=b.y+b.h; }
+function onDown(e){
+  const p = pt(e);
+  audio();
+  if (scene==='menu'){
+    for(const b of menuBtns) if (hit(p,b)){ SFX.click(); startBattle(b.i); return; }
+    return;
+  }
+  if (scene==='battle'){
+    for(const b of hudBtns) if (hit(p,b)){
+      SFX.click();
+      if (b.act==='sel') sel = b.i;
+      else if (b.act==='ab'){ const h=team[sel]; const ab=h.ab[b.i]; if(ab.rt<=0 && h.alive) castAbility(h, ab, true); }
+      else if (b.act==='auto') autoMode = !autoMode;
+      else if (b.act==='x2'){ speed2=!speed2; timeScale = speed2?2:1; }
+      else if (b.act==='retry') startBattle(levelIdx);
+      else if (b.act==='menu'){ scene='menu'; }
+      return;
+    }
+    if (!battleOver && p.x>ARENA.x0 && p.x<ARENA.x1 && p.y>ARENA.y0 && p.y<ARENA.y1){
+      team[sel].wp = {x:p.x, y:p.y};
+    }
+  }
+}
+cv.addEventListener('pointerdown', onDown);
+
+// ---------- Главный цикл ----------
+let last = performance.now();
+function loop(now){
+  const dt = Math.min(.05, (now-last)/1000) * timeScale;
+  last = now;
+  if (scene==='battle' && !battleOver) tick(dt);
+  if (scene==='menu') drawMenu(); else drawBattle();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
