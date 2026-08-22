@@ -20,6 +20,9 @@ SPRITES = {
     "hero_frank": 360, "hero_ash": 360, "hero_aimer": 360, "hero_cheney": 360,
     "mob_dreamling": 270, "mob_sylph": 270, "mob_kelpie": 280, "mob_golem": 300,
     "boss_darklord": 520,
+    # параллакс-слои мира
+    "mid": 540,   # layer_mid.png — парящие острова
+    "front": 460, # layer_front.png — платформа
 }
 
 def chroma_key(im):
@@ -85,7 +88,7 @@ def trim(im, pad=8):
 os.makedirs(PROC, exist_ok=True)
 out = {}
 for name, target_h in SPRITES.items():
-    path = os.path.join(RAW, name + ".png")
+    path = os.path.join(RAW, ("layer_" + name if name in ("mid", "front") else name) + ".png")
     if not os.path.exists(path):
         print("НЕТ ФАЙЛА:", path)
         continue
@@ -97,19 +100,24 @@ for name, target_h in SPRITES.items():
     share = opaque_share(im)
     im.save(os.path.join(PROC, name + ".png"))  # превью для просмотра
     buf = io.BytesIO()
+    if name in ("mid", "front"):
+        try:
+            im = im.quantize(colors=256, method=Image.FASTOCTREE)
+        except Exception:
+            pass
     im.save(buf, "PNG", optimize=True)
     out[name] = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
-    flag = "ок" if 0.10 <= share <= 0.85 else ("ПРОВЕРИТЬ: почти всё вырезано?" if share < 0.10 else "много фона осталось?")
+    flag = "ок" if (0.10 <= share <= 0.92 or name in ("mid","front")) else ("ПРОВЕРИТЬ: почти всё вырезано?" if share < 0.10 else "много фона осталось?")
     print(f"{name}: {im.size[0]}x{im.size[1]}, вырезано фона {removed_share:.0%}, "
           f"персонаж занимает {share:.0%} кропа ({flag}), {len(out[name])//1024} КБ")
 
-bg_path = os.path.join(RAW, "bg_arena.jpg")
+bg_path = os.path.join(RAW, "layer_sky.jpg")
 if os.path.exists(bg_path):
     bg = Image.open(bg_path).convert("RGB").resize((1920, 1080), Image.LANCZOS)
     buf = io.BytesIO()
     bg.save(buf, "JPEG", quality=80, optimize=True)
-    out["bg"] = "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
-    print("bg:", len(out["bg"]) // 1024, "КБ")
+    out["sky"] = "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+    print("sky:", len(out["sky"]) // 1024, "КБ")
 
 print("Итого b64:", sum(len(v) for v in out.values()) // 1024, "КБ")
 
