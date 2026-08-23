@@ -18,6 +18,11 @@ HTML = os.path.join(ROOT, "prototype", "index.html")
 
 SPRITES = {
     "hero_frank": 360, "hero_ash": 360, "hero_aimer": 360, "hero_cheney": 360,
+    "hero_frank_walk2": 360, "hero_frank_atk": 360, "hero_frank_cast": 360,
+    "hero_ash_walk2": 360, "hero_ash_atk": 360, "hero_ash_cast": 360,
+    "hero_aimer_walk2": 360, "hero_aimer_atk": 360, "hero_aimer_cast": 360,
+    "hero_cheney_walk2": 360, "hero_cheney_atk": 360, "hero_cheney_cast": 360,
+    "boss_darklord_atk": 520,
     "mob_dreamling": 270, "mob_sylph": 270, "mob_kelpie": 280, "mob_golem": 300,
     "boss_darklord": 520,
     # параллакс-слои мира
