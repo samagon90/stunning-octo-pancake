@@ -35,6 +35,7 @@ SPRITES = {
     # параллакс-слои мира
     "mid": 540,   # layer_mid.png — парящие острова
     "front": 460, # layer_front.png — платформа
+    "clouds": 300, # layer_clouds.png — зацыкленная полоса облаков
 }
 
 def chroma_key(im):
@@ -100,7 +101,7 @@ def trim(im, pad=8):
 os.makedirs(PROC, exist_ok=True)
 out = {}
 for name, target_h in SPRITES.items():
-    path = os.path.join(RAW, ("layer_" + name if name in ("mid", "front") else name) + ".png")
+    path = os.path.join(RAW, ("layer_" + name if name in ("mid", "front", "clouds") else name) + ".png")
     if not os.path.exists(path):
         print("НЕТ ФАЙЛА:", path)
         continue
