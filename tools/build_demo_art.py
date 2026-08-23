@@ -36,6 +36,9 @@ SPRITES = {
     "mid": 540,   # layer_mid.png — парящие острова
     "front": 460, # layer_front.png — платформа
     "clouds": 300, # layer_clouds.png — зацыкленная полоса облаков
+    # тематические фоны уровней: дальняя полоса / панорама / пол
+    "far_forest": 260, "bg_forest": 470, "ground_forest": 460,
+    "far_desert": 260, "bg_desert": 470, "ground_desert": 460,
 }
 
 def chroma_key(im):
