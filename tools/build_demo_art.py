@@ -39,6 +39,10 @@ SPRITES = {
     # тематические фоны уровней: дальняя полоса / панорама / пол
     "far_forest": 260, "bg_forest": 470, "ground_forest": 460,
     "far_desert": 260, "bg_desert": 470, "ground_desert": 460,
+    "far_snow": 260, "bg_snow": 470, "ground_snow": 460,
+    "far_volcano": 260, "bg_volcano": 470, "ground_volcano": 460,
+    # передний план с толстыми контурами (глубина, parallax 1.35)
+    "near_dream": 430, "near_forest": 430, "near_desert": 430, "near_snow": 430,
 }
 
 def chroma_key(im):
