@@ -741,13 +741,14 @@ function fxCrack(x,y){
 }
 function imgOK(k){ const im=IMG[k]; return im&&im.complete&&im.naturalWidth>0; }
 
-function drawWorld(){
-  const th = LEVELS[levelIdx].theme || 'dream';
+function drawWorld(scx, th){
+  if (scx == null) scx = camX;
+  if (!th) th = LEVELS[levelIdx].theme || 'dream';
   // НЕБО (параллакс 0.12)
   const sky=IMG.sky;
   if (imgOK('sky')){
     const tile = VW+80;
-    let sx = (-camX*.12) % tile;
+    let sx = (-scx*.12) % tile;
     if (sx > 0) sx -= tile;
     for (let x = sx; x < VW; x += tile) ctx.drawImage(sky, x, 0, tile, VH);
   } else {
@@ -759,7 +760,7 @@ function drawWorld(){
   const mid=IMG['far_'+th] || IMG.mid;
   if (imgOK('mid')){
     const mw2=VW*1.05, st2=mw2;
-    let off2=(camX*.18 + Date.now()/9000) % st2;
+    let off2=(scx*.18 + Date.now()/9000) % st2;
     if (off2>0) off2-=st2;
     ctx.globalAlpha=.45;
     for (let x=off2; x<VW; x+=st2) ctx.drawImage(mid,x,110,mw2,VH*.42);
@@ -768,17 +769,17 @@ function drawWorld(){
   // ПАНОРАМА ТЕМЫ (параллакс 0.4)
   const panorama = IMG['bg_'+th];
   if (panorama && panorama.complete && panorama.naturalWidth>0){
-    const mw=VW*1.25, mx=-((camX*.4)%(mw*.85));
+    const mw=VW*1.25, mx=-((scx*.4)%(mw*.85));
     for (let x=mx-mw; x<VW+mw; x+=mw*.85) ctx.drawImage(panorama,x,90,mw,VH*.62);
   } else if (imgOK('mid')){
-    const mw=VW*1.4, mx=-((camX*.4)%(mw*.8));
+    const mw=VW*1.4, mx=-((scx*.4)%(mw*.8));
     for (let x=mx-mw; x<VW+mw; x+=mw*.8) ctx.drawImage(mid,x,60,mw,VH*.55);
   }
   // ОБЛАКА-ДРЕЙФ (параллакс 0.6 + собственное движение — фон живёт всегда)
   const cl=IMG.clouds;
   if (cl && cl.complete && cl.naturalWidth>0){
     const cw=VW*.85;
-    let off=(camX*.6 + Date.now()/45) % cw;
+    let off=(scx*.6 + Date.now()/45) % cw;
     if (off>0) off-=cw;
     ctx.globalAlpha=.75;
     const ch=cw*cl.naturalHeight/cl.naturalWidth;
@@ -794,9 +795,9 @@ function drawWorld(){
   const front=IMG['ground_'+th] || IMG.front;
   if (imgOK('front')){
     const ftw=1650, fh=GROUND_BOT-GROUND_TOP+120;
-    const first=Math.floor((camX-VW)/ftw)*ftw;
+    const first=Math.floor((scx-VW)/ftw)*ftw;
     let idx=0;
-    for (let x=first; x<camX+VW+ftw; x+=ftw){
+    for (let x=first; x<scx+VW+ftw; x+=ftw){
       const flip = ((x/ftw)%2+2)%2 >= 1;
       if (flip){
         ctx.save(); ctx.translate(x+ftw,0); ctx.scale(-1,1);
@@ -813,8 +814,8 @@ function drawWorld(){
   ctx.save();
   ctx.globalAlpha=.10;
   ctx.fillStyle='#9fd0ff';
-  const mk0 = Math.floor((camX-420)/210)*210;
-  for (let mx0=mk0; mx0<camX+VW+420; mx0+=210){
+  const mk0 = Math.floor((scx-420)/210)*210;
+  for (let mx0=mk0; mx0<scx+VW+420; mx0+=210){
     const my=GROUND_TOP+90+((mx0*7919)% (GROUND_BOT-GROUND_TOP-180));
     const w2=26+((mx0*31)%34);
     ctx.beginPath(); ctx.ellipse(mx0,my,w2,5,0,0,7); ctx.fill();
@@ -834,13 +835,14 @@ function drawWorld(){
   }
   ctx.restore();
 }
-function drawNear(){
+function drawNear(scx, th){
   // ПЕРЕДНИЙ ПЛАН: пропсы с толстыми контурами пролетают ПЕРЕД отрядом — эффект объёма
-  const th = LEVELS[levelIdx].theme || 'dream';
+  if (scx == null) scx = camX;
+  if (!th) th = LEVELS[levelIdx].theme || 'dream';
   const im = IMG['near_'+th];
   if (!(im && im.complete && im.naturalWidth > 0)) return;
   const nw = VW*.95, nh = nw*im.naturalHeight/im.naturalWidth;
-  let off = (camX*1.35) % nw;
+  let off = (scx*1.35) % nw;
   if (off > 0) off -= nw;
   ctx.globalAlpha = .88;
   for (let x = off; x < VW; x += nw) ctx.drawImage(im, x, VH-nh-70, nw, nh);
@@ -1054,9 +1056,29 @@ function drawMenu(){
   const g=ctx.createLinearGradient(0,0,0,VH);
   g.addColorStop(0,'#131b38'); g.addColorStop(1,'#0b1020');
   ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH);
-  const sky=IMG.sky;
-  if (imgOK('sky')) { ctx.globalAlpha=.5; ctx.drawImage(sky,0,0,VW,VH); ctx.globalAlpha=1; }
+  // ЖИВАЯ КАРТА: мир бежит как на дорожке, темы миров сменяются каждые 14с
+  const MTHEMES=['dream','forest','desert','snow','volcano'];
+  const MNAMES={dream:'Сны',forest:'Лес',desert:'Пустыня',snow:'Ледяной сон',volcano:'Вулкан'};
+  const mTh = MTHEMES[Math.floor(Date.now()/14000)%5];
+  const mScroll = Date.now()*.16;
+  drawWorld(mScroll, mTh);
+  drawNear(mScroll, mTh);
+  ctx.fillStyle='rgba(5,8,16,.38)'; ctx.fillRect(0,0,VW,VH);
   drawAmbient();
+  // линии скорости и в меню — дорога летит
+  if (Math.random()<.25) speedLines.push({x:VW+60, y:100+Math.random()*740,
+    len:120+Math.random()*170, v:820+Math.random()*520, a:.09+Math.random()*.12});
+  for (const sl of speedLines) sl.x -= sl.v/60;
+  speedLines = speedLines.filter(sl => sl.x+sl.len > -20);
+  for (const sl of speedLines){
+    ctx.globalAlpha = sl.a;
+    const sg = ctx.createLinearGradient(sl.x,0,sl.x+sl.len,0);
+    sg.addColorStop(0,'rgba(180,210,255,0)');
+    sg.addColorStop(1,'rgba(220,235,255,0.9)');
+    ctx.fillStyle = sg;
+    ctx.fillRect(sl.x, sl.y, sl.len, 2.5);
+  }
+  ctx.globalAlpha = 1;
   drawRays();
   drawPetals();
   // кнопки громкости (сайт-версия)
@@ -1078,6 +1100,8 @@ function drawMenu(){
   ctx.restore();
   ctx.font='600 30px Segoe UI'; ctx.fillStyle='#8f9ac0';
   ctx.fillText('возрождение • веб-демо',480,282);
+  ctx.font='500 24px Segoe UI'; ctx.fillStyle='#9fb0e0';
+  ctx.fillText('мир: '+({dream:'Сны',forest:'Лес',desert:'Пустыня',snow:'Ледяной сон',volcano:'Вулкан'})[mTh],480,326);
   ROSTER.forEach((h,i)=>{
     const x=120+i*195, y=560;
     const im=IMG['hero_'+h.id], ok=imgOK('hero_'+h.id);
