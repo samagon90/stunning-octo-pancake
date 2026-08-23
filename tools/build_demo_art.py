@@ -28,15 +28,17 @@ SPRITES = {
     "hero_cheney_walk3": 360, "hero_cheney_atk2": 360,
     "mob_sylph_walk2": 270, "mob_kelpie_walk2": 280,
     "mob_dreamling_walk2": 270, "mob_golem_walk2": 300,
-    "boss_darklord_atk": 520, "boss_darklord_cast": 520,
-    "boss_nightmare": 520, "boss_nightmare_atk": 520,
-    "boss_ancient": 520, "boss_ancient_atk": 520,
-    "boss_blizzard": 520, "boss_blizzard_atk": 520,
-    "boss_ash": 520, "boss_ash_atk": 520,
+    "boss_darklord_atk": 460, "boss_darklord_cast": 460,
+    "boss_nightmare": 460, "boss_nightmare_atk": 460,
+    "boss_ancient": 460, "boss_ancient_atk": 460,
+    "boss_blizzard": 460, "boss_blizzard_atk": 460,
+    "boss_ash": 460, "boss_ash_atk": 460,
     "mob_dreamling_atk1": 270, "mob_golem_atk1": 300,
     "mob_sylph_atk1": 270, "mob_kelpie_atk1": 280,
-    "boss_nightmare_cast": 520, "boss_ancient_cast": 520, "boss_blizzard_cast": 520, "boss_ash_cast": 520,
+    "boss_nightmare_cast": 460, "boss_ancient_cast": 460, "boss_blizzard_cast": 460, "boss_ash_cast": 460,
     "hero_frank_cast2": 360, "hero_ash_cast2": 360, "hero_aimer_cast2": 360, "hero_cheney_cast2": 360,
+    "hero_hades": 360, "hero_hades_walk1": 360, "hero_hades_walk2": 360,
+    "hero_hades_atk1": 360, "hero_hades_atk": 360, "hero_hades_cast": 360, "hero_hades_cast2": 360,
     "mob_dreamling2": 290, "mob_dreamling2_atk": 290,
     "mob_sylph2": 290, "mob_sylph2_atk": 290,
     "mob_kelpie2": 300, "mob_kelpie2_atk": 300,
@@ -44,16 +46,16 @@ SPRITES = {
     "mob_golem_magma": 320, "mob_golem_magma_atk": 320,
     "mob_dreamling_atk": 270, "mob_sylph_atk": 270, "mob_kelpie_atk": 280, "mob_golem_atk": 300,
     "mob_dreamling": 270, "mob_sylph": 270, "mob_kelpie": 280, "mob_golem": 300,
-    "boss_darklord": 520,
+    "boss_darklord": 460,
     # параллакс-слои мира
     "mid": 540,   # layer_mid.png — парящие острова
     "front": 460, # layer_front.png — платформа
     "clouds": 300, # layer_clouds.png — зацыкленная полоса облаков
     # тематические фоны уровней: дальняя полоса / панорама / пол
-    "far_forest": 260, "bg_forest": 470, "ground_forest": 460,
-    "far_desert": 260, "bg_desert": 470, "ground_desert": 460,
-    "far_snow": 260, "bg_snow": 470, "ground_snow": 460,
-    "far_volcano": 260, "bg_volcano": 470, "ground_volcano": 460,
+    "far_forest": 260, "bg_forest": 440, "ground_forest": 460,
+    "far_desert": 260, "bg_desert": 440, "ground_desert": 460,
+    "far_snow": 260, "bg_snow": 440, "ground_snow": 460,
+    "far_volcano": 260, "bg_volcano": 440, "ground_volcano": 460,
     # передний план с толстыми контурами (глубина, parallax 1.35)
     "near_dream": 430, "near_forest": 430, "near_desert": 430, "near_snow": 430, "near_volcano": 430,
 }
