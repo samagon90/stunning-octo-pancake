@@ -22,7 +22,8 @@ SPRITES = {
     "hero_ash_walk2": 360, "hero_ash_atk": 360, "hero_ash_cast": 360,
     "hero_aimer_walk2": 360, "hero_aimer_atk": 360, "hero_aimer_cast": 360,
     "hero_cheney_walk2": 360, "hero_cheney_atk": 360, "hero_cheney_cast": 360,
-    "boss_darklord_atk": 520,
+    "boss_darklord_atk": 520, "boss_darklord_cast": 520,
+    "mob_dreamling_atk": 270, "mob_sylph_atk": 270, "mob_kelpie_atk": 280, "mob_golem_atk": 300,
     "mob_dreamling": 270, "mob_sylph": 270, "mob_kelpie": 280, "mob_golem": 300,
     "boss_darklord": 520,
     # параллакс-слои мира
@@ -105,11 +106,10 @@ for name, target_h in SPRITES.items():
     share = opaque_share(im)
     im.save(os.path.join(PROC, name + ".png"))  # превью для просмотра
     buf = io.BytesIO()
-    if name in ("mid", "front"):
-        try:
-            im = im.quantize(colors=256, method=Image.FASTOCTREE)
-        except Exception:
-            pass
+    try:  # палитровое сжатие: для мультяшного арта почти без потерь, минус 60% веса
+        im = im.quantize(colors=192, method=Image.FASTOCTREE)
+    except Exception:
+        pass
     im.save(buf, "PNG", optimize=True)
     out[name] = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
     flag = "ок" if (0.10 <= share <= 0.92 or name in ("mid","front")) else ("ПРОВЕРИТЬ: почти всё вырезано?" if share < 0.10 else "много фона осталось?")
