@@ -18,10 +18,11 @@ HTML = os.path.join(ROOT, "prototype", "index.html")
 
 SPRITES = {
     "hero_frank": 360, "hero_ash": 360, "hero_aimer": 360, "hero_cheney": 360,
-    "hero_frank_walk2": 360, "hero_frank_atk": 360, "hero_frank_cast": 360,
-    "hero_ash_walk2": 360, "hero_ash_atk": 360, "hero_ash_cast": 360,
-    "hero_aimer_walk2": 360, "hero_aimer_atk": 360, "hero_aimer_cast": 360,
-    "hero_cheney_walk2": 360, "hero_cheney_atk": 360, "hero_cheney_cast": 360,
+    "hero_frank_walk1": 360, "hero_frank_walk2": 360, "hero_frank_atk": 360, "hero_frank_atk1": 360, "hero_frank_cast": 360,
+    "hero_ash_walk1": 360, "hero_ash_walk2": 360, "hero_ash_atk": 360, "hero_ash_atk1": 360, "hero_ash_cast": 360,
+    "hero_aimer_walk1": 360, "hero_aimer_walk2": 360, "hero_aimer_atk": 360, "hero_aimer_atk1": 360, "hero_aimer_cast": 360,
+    "hero_cheney_walk1": 360, "hero_cheney_walk2": 360, "hero_cheney_atk": 360, "hero_cheney_atk1": 360, "hero_cheney_cast": 360,
+    "mob_dreamling_walk2": 270, "mob_golem_walk2": 300,
     "boss_darklord_atk": 520, "boss_darklord_cast": 520,
     "mob_dreamling_atk": 270, "mob_sylph_atk": 270, "mob_kelpie_atk": 280, "mob_golem_atk": 300,
     "mob_dreamling": 270, "mob_sylph": 270, "mob_kelpie": 280, "mob_golem": 300,
