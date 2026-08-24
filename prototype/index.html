@@ -54,7 +54,7 @@ window.addEventListener('error', function(e){
   dmReportError((e.message||e.error)+' @строка '+(e.lineno||'?'),
     e.error && e.error.stack ? e.error.stack : (e.filename||'')+' #'+(e.lineno||'?'));
 });
-const GAME_VERSION = 'v12';
+const GAME_VERSION = 'v13';
 var dmRaf = 0, dmLastDraw = 0, dmDebug = true, dmNoRaf = false;
 let VEC = false;
 setTimeout(function(){
@@ -1446,7 +1446,7 @@ setTimeout(function(){
 }, 1500);
 
 // ---------- Цикл ----------
-let last=performance.now();
+let last=(typeof performance!=='undefined'?performance:Date).now();
 function loop(now){
   try{
   loopInner(now);
