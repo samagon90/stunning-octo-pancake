@@ -18,7 +18,7 @@
 if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect){
   CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
     r = Math.min(r, Math.abs(w)/2, Math.abs(h)/2);
-    this.moveTo(x+r,y); this.arcTo(x+w,y+w*0+y+h,r); this.arcTo(x+w,y+h,x,y+h,r);
+    this.moveTo(x+r,y); this.arcTo(x+w,y,x+w,y+h,r); this.arcTo(x+w,y+h,x,y+h,r);
     this.arcTo(x,y+h,x,y,r); this.arcTo(x,y,x+w,y,r); this.closePath(); return this;
   };
 }
@@ -29,7 +29,16 @@ window.addEventListener('error', function(e){
     (document.body || document.documentElement).appendChild(d); }
   d.textContent = 'ОШИБКА (сообщите разработчику): ' + (e.message || e.error) + ' @строка ' + (e.lineno || '?');
 });
-const GAME_VERSION = 'v8';
+const GAME_VERSION = 'v9';
+// Полифилл ellipse (старые WebView/браузеры): через масштаб и arc
+if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.ellipse){
+  CanvasRenderingContext2D.prototype.ellipse = function(x,y,rx,ry,rot,a0,a1,ccw){
+    this.save(); this.translate(x,y); this.rotate(rot||0);
+    this.scale(1,(ry||1)/(rx||1));
+    this.arc(0,0,rx||1,a0||0,a1===undefined?Math.PI*2:a1,ccw||false);
+    this.restore(); return this;
+  };
+}
 /* ============================================================
    МАСТЕРА СНОВ: ВОЗРОЖДЕНИЕ — веб-демо (движок v3)
    • Путешествие по миру: комнаты, скролл, камера с догоном
@@ -1331,6 +1340,18 @@ cv.addEventListener('pointerdown',onDown);
 // ---------- Цикл ----------
 let last=performance.now();
 function loop(now){
+  try{
+  loopInner(now);
+  } catch(err){
+    // ошибка кадра — показываем, но НЕ останавливаем игру
+    var d=document.getElementById('dm_err');
+    if(!d){ d=document.createElement('div'); d.id='dm_err';
+      d.style.cssText='position:fixed;left:0;bottom:0;right:0;background:#b00;color:#fff;font:14px monospace;padding:8px;z-index:999;white-space:pre-wrap;';
+      (document.body||document.documentElement).appendChild(d); }
+    if (!d.textContent.includes(''+err)) d.textContent += 'КАДР: '+err+'\n';
+  }
+}
+function loopInner(now){
   let dtRaw=Math.min(.05,(now-last)/1000);
   last=now;
   updateAmbient(dtRaw);
