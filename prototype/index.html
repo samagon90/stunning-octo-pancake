@@ -54,7 +54,8 @@ window.addEventListener('error', function(e){
   dmReportError((e.message||e.error)+' @строка '+(e.lineno||'?'),
     e.error && e.error.stack ? e.error.stack : (e.filename||'')+' #'+(e.lineno||'?'));
 });
-const GAME_VERSION = 'v11';
+const GAME_VERSION = 'v12';
+var dmRaf = 0, dmLastDraw = 0, dmDebug = true, dmNoRaf = false;
 let VEC = false;
 setTimeout(function(){
   let total=0, loaded=0;
@@ -1430,7 +1431,19 @@ function onDown(e){
     }
   }
 }
+var dmStartT = Date.now();
+cv.addEventListener('pointerdown', function(e){
+  const pp = pt(e);
+  if (pp.x < 90 && pp.y < 260) { dmDebug = !dmDebug; return; }
+});
 cv.addEventListener('pointerdown',onDown);
+// если rAF не тикает (экзотические браузеры) — включаем резервный таймер
+setTimeout(function(){
+  if (dmRaf < 20){
+    dmNoRaf = true;
+    setInterval(function(){ loopInner(Date.now()); }, 33);
+  }
+}, 1500);
 
 // ---------- Цикл ----------
 let last=performance.now();
@@ -1447,6 +1460,7 @@ function loop(now){
   }
 }
 function loopInner(now){
+  dmRaf++;
   let dtRaw=Math.min(.05,(now-last)/1000);
   last=now;
   updateAmbient(dtRaw);
@@ -1456,6 +1470,41 @@ function loopInner(now){
   if (scene==='battle'&&!battleOver) tick(dt||0.0001);
   else if (scene==='battle') tickFx(dt||0.0001);
   if (scene==='menu') drawMenu(); else drawBattle();
+  dmLastDraw = Date.now();
+  // === ВОДЯНОЙ ЗНАК СБОРКИ: версия + живые часы (видно с первой секунды) ===
+  ctx.save();
+  ctx.font='800 26px Segoe UI'; ctx.textAlign='center';
+  ctx.lineWidth=5; ctx.strokeStyle='rgba(0,0,0,0.75)';
+  const wm = 'СБОРКА '+GAME_VERSION+' • '+new Date().toLocaleTimeString();
+  ctx.strokeText(wm, VW/2, 30);
+  ctx.fillStyle='#ffd76a'; ctx.fillText(wm, VW/2, 30);
+  // === ПАНЕЛЬ САМОДИАГНОСТИКИ (первые 8 секунд или тап по левому верхнему углу) ===
+  if (dmDebug || Date.now()-dmStartT < 8000){
+    ctx.globalAlpha=.92;
+    ctx.fillStyle='rgba(5,8,18,0.9)';
+    ctx.fillRect(14, 44, 640, 210);
+    ctx.strokeStyle='#4d8cf2'; ctx.lineWidth=2;
+    ctx.strokeRect(14, 44, 640, 210);
+    ctx.globalAlpha=1;
+    ctx.textAlign='left'; ctx.font='600 19px Segoe UI';
+    const ac = artCount();
+    const frozen = dmLastDraw && (Date.now()-dmLastDraw) > 900;
+    const lines = [
+      ['СБОРКА', GAME_VERSION+' (если тут не v12 — файл старый, скачайте заново!)'],
+      ['БРАУЗЕР', (navigator.userAgent||'').slice(0,52)],
+      ['ЭКРАН', innerWidth+'x'+innerHeight+' | холст 1920x1080'],
+      ['КАДРЫ rAF', dmRaf+' '+(dmNoRaf? '(резервный таймер!)':'')],
+      ['КАРТИНКИ', ac[0]+'/'+ac[1]+' | режим: '+(VEC?'ВЕКТОР':'СПРАЙТЫ')],
+      ['ЧАСЫ', frozen? 'ЗАМОРОЖЕНЫ — браузер не тянет анимацию, откройте в Chrome/Firefox' : 'живые ✓'],
+    ];
+    lines.forEach(function(L,i){
+      ctx.fillStyle='#7fb2ff'; ctx.fillText(L[0], 30, 76+i*30);
+      ctx.fillStyle= L[0]==='ЧАСЫ'&&frozen ? '#ff6a5a' : '#dfe3f0';
+      ctx.fillText(L[1], 150, 76+i*30);
+    });
+    ctx.fillStyle='#667'; ctx.font='500 16px Segoe UI';
+    ctx.fillText('тап по левому верхнему углу — скрыть/показать панель', 30, 246);
+  }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
