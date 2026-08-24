@@ -14,6 +14,22 @@
 <div id="wrap"><canvas id="cv"></canvas></div>
 <script>
 "use strict";
+// ==== СТАРТОВЫЕ ЗАЩИТЫ (v8) ====
+if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect){
+  CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
+    r = Math.min(r, Math.abs(w)/2, Math.abs(h)/2);
+    this.moveTo(x+r,y); this.arcTo(x+w,y+w*0+y+h,r); this.arcTo(x+w,y+h,x,y+h,r);
+    this.arcTo(x,y+h,x,y,r); this.arcTo(x,y,x+w,y,r); this.closePath(); return this;
+  };
+}
+window.addEventListener('error', function(e){
+  var d = document.getElementById('dm_err');
+  if (!d){ d = document.createElement('div'); d.id='dm_err';
+    d.style.cssText = 'position:fixed;left:0;bottom:0;right:0;background:#b00;color:#fff;font:14px monospace;padding:8px;z-index:999;white-space:pre-wrap;';
+    (document.body || document.documentElement).appendChild(d); }
+  d.textContent = 'ОШИБКА (сообщите разработчику): ' + (e.message || e.error) + ' @строка ' + (e.lineno || '?');
+});
+const GAME_VERSION = 'v8';
 /* ============================================================
    МАСТЕРА СНОВ: ВОЗРОЖДЕНИЕ — веб-демо (движок v3)
    • Путешествие по миру: комнаты, скролл, камера с догоном
@@ -625,7 +641,8 @@ function tick(dt){
       if (u.wp){
         if (moveUnit(u,u.wp.x,u.wp.y,dt,1)) u.wp=null;
       }
-      const t=nearest(u,enemies);
+      let t=nearest(u,enemies);
+      if (t && t.x-camX > VW-60) t = null;
       if (!t && !u.wp) moveUnit(u, camX + u.homeX, GROUND_BOT-140, dt, 1);
       if (t){
         const dd=dist(u,t);
@@ -649,6 +666,7 @@ function tick(dt){
       if (!e.alive||e.dropY<0) continue;
       const t=nearest(e,team);
       if (!t) continue;
+      if (e.x - camX > VW-60){ e.x -= 320*dt; e.moving = true; }
       const dd=dist(e,t);
       // босс: периодический слэм с телеграфом
       if (e.boss){
@@ -1160,7 +1178,13 @@ function drawMenu(){
     menuMsgT -= .016;
   }
   ctx.font='500 22px Segoe UI'; ctx.fillStyle='#667'; ctx.textAlign='center';
-  ctx.fillText('Полная версия — Unity: 9 миров, 14 героев, арена, гача, чат • веб-демо v7',VW/2,VH-14);
+  ctx.fillText('Полная версия — Unity: 9 миров, 14 героев, арена, гача, чат • веб-демо '+GAME_VERSION,VW/2,VH-14);
+  const artTotal = Object.keys(IMG).length;
+  const artLoaded = Object.keys(IMG).filter(k=>IMG[k].complete).length;
+  if (artLoaded < artTotal){
+    ctx.font='500 24px Segoe UI'; ctx.fillStyle='#ffd76a';
+    ctx.fillText('ЗАГРУЗКА АРТА '+artLoaded+' / '+artTotal+' …', VW/2, VH-52);
+  }
 }
 function drawBattle(){
   ctx.save();
