@@ -22,14 +22,39 @@ if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D
     this.arcTo(x,y+h,x,y,r); this.arcTo(x,y,x+w,y,r); this.closePath(); return this;
   };
 }
+function dmReportError(msg, stack){
+  try{
+    window.__DM_ERR_COUNT = (window.__DM_ERR_COUNT||0)+1;
+    if (window.__DM_ERR_COUNT > 5) return; // не спамим
+    var d = document.getElementById('dm_err');
+    if (!d){
+      d = document.createElement('div'); d.id='dm_err';
+      d.style.cssText = 'position:fixed;left:0;bottom:0;right:0;background:#b00;color:#fff;font:15px monospace;padding:10px;z-index:9999;white-space:pre-wrap;max-height:45%;overflow:auto;user-select:text;-webkit-user-select:text;touch-action:auto;cursor:text;';
+      (document.body || document.documentElement).appendChild(d);
+      var b = document.createElement('button');
+      b.textContent = 'КОПИРОВАТЬ ТЕКСТ ОШИБКИ';
+      b.style.cssText = 'display:block;margin:6px 0;padding:8px 14px;font:700 15px sans-serif;background:#fff;color:#b00;border:0;border-radius:8px;';
+      b.onclick = function(){
+        var t = document.getElementById('dm_err_text').textContent;
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t);
+        else { var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} ta.remove(); }
+        b.textContent = 'СКОПИРОВАНО ✓ (отправьте разработчику)';
+      };
+      d.appendChild(b);
+      var pre = document.createElement('div'); pre.id='dm_err_text';
+      pre.style.cssText='user-select:text;-webkit-user-select:text;cursor:text;';
+      d.appendChild(pre);
+    }
+    var pre = document.getElementById('dm_err_text');
+    var info = 'ОШИБКА: '+msg+'\nБРАУЗЕР: '+navigator.userAgent+'\nСТРАНИЦА: '+(location.href||'')+'\nСТЕК: '+(stack||'нет');
+    if (pre.textContent.indexOf(msg) === -1) pre.textContent += (pre.textContent?'\n―――――\n':'') + info;
+  }catch(_){}
+}
 window.addEventListener('error', function(e){
-  var d = document.getElementById('dm_err');
-  if (!d){ d = document.createElement('div'); d.id='dm_err';
-    d.style.cssText = 'position:fixed;left:0;bottom:0;right:0;background:#b00;color:#fff;font:14px monospace;padding:8px;z-index:999;white-space:pre-wrap;';
-    (document.body || document.documentElement).appendChild(d); }
-  d.textContent = 'ОШИБКА (сообщите разработчику): ' + (e.message || e.error) + ' @строка ' + (e.lineno || '?');
+  dmReportError((e.message||e.error)+' @строка '+(e.lineno||'?'),
+    e.error && e.error.stack ? e.error.stack : (e.filename||'')+' #'+(e.lineno||'?'));
 });
-const GAME_VERSION = 'v9';
+const GAME_VERSION = 'v10';
 // Полифилл ellipse (старые WebView/браузеры): через масштаб и arc
 if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.ellipse){
   CanvasRenderingContext2D.prototype.ellipse = function(x,y,rx,ry,rot,a0,a1,ccw){
@@ -38,6 +63,15 @@ if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D
     this.arc(0,0,rx||1,a0||0,a1===undefined?Math.PI*2:a1,ccw||false);
     this.restore(); return this;
   };
+}
+if (typeof Math.hypot !== 'function'){
+  Math.hypot = function(){ var s=0; for (var i=0;i<arguments.length;i++) s += arguments[i]*arguments[i]; return Math.sqrt(s); };
+}
+if (!Array.prototype.includes){
+  Array.prototype.includes = function(x){ for (var i=0;i<this.length;i++) if (this[i]===x) return true; return false; };
+}
+if (typeof Object.assign !== 'function'){
+  Object.assign = function(t){ for (var i=1;i<arguments.length;i++){ var s=arguments[i]; for (var k in s) t[k]=s[k]; } return t; };
 }
 /* ============================================================
    МАСТЕРА СНОВ: ВОЗРОЖДЕНИЕ — веб-демо (движок v3)
@@ -405,7 +439,8 @@ function startBattle(i){
   levelIdx=i;
   const lvl=LEVELS[i];
   worldW = ROOM_PAD*2 + ROOM_W*lvl.waves.length;
-  const active = ROSTER.filter(h=>SAVE.heroes.includes(h.id));
+  let active = ROSTER.filter(h=>SAVE.heroes.indexOf(h.id) !== -1);
+  if (!active.length){ active = ROSTER.slice(0,4); } // страховка: сейв битый — играем стартовой четвёркой
   const boost = 1 + .1*(SAVE.teamLevel-1);
   team = active.map((h,k)=>{ const u=mkUnit(h, 200+k*165, GROUND_BOT-140, 0); u.r=40; u.artKey='hero_'+h.id;
     u.maxhp=Math.round(h.hp*boost); u.hp=u.maxhp; u.atk=Math.round(h.atk*boost); return u; });
@@ -1045,6 +1080,9 @@ function drawBattleHUD(){
     ctx.font='800 26px Segoe UI'; ctx.textAlign='center'; ctx.fillStyle='#fff';
     ctx.fillText(boss.n.toUpperCase(), VW/2, by+28);
   }
+  // отладочная строка: всегда видна, покажет состояние игры
+  ctx.font='500 20px Segoe UI'; ctx.textAlign='left'; ctx.fillStyle='#7dff9a';
+  ctx.fillText(GAME_VERSION+' | героев:'+team.length+' | врагов:'+enemies.filter(function(e){return e.alive;}).length+' | мир:'+Math.round(camX), 40, GROUND_BOT+50);
 }
 function drawBanner(){
   if (bannerT<=0) return;
@@ -1348,7 +1386,7 @@ function loop(now){
     if(!d){ d=document.createElement('div'); d.id='dm_err';
       d.style.cssText='position:fixed;left:0;bottom:0;right:0;background:#b00;color:#fff;font:14px monospace;padding:8px;z-index:999;white-space:pre-wrap;';
       (document.body||document.documentElement).appendChild(d); }
-    if (!d.textContent.includes(''+err)) d.textContent += 'КАДР: '+err+'\n';
+    dmReportError('КАДР: '+err, err && err.stack ? err.stack : '');
   }
 }
 function loopInner(now){
