@@ -54,7 +54,14 @@ window.addEventListener('error', function(e){
   dmReportError((e.message||e.error)+' @строка '+(e.lineno||'?'),
     e.error && e.error.stack ? e.error.stack : (e.filename||'')+' #'+(e.lineno||'?'));
 });
-const GAME_VERSION = 'v10';
+const GAME_VERSION = 'v11';
+let VEC = false;
+setTimeout(function(){
+  let total=0, loaded=0;
+  for (var k in IMG){ total++; var im=IMG[k]; if (im.complete && im.naturalWidth>0) loaded++; }
+  if (loaded < total*0.5) VEC = true;
+}, 2500);
+function artCount(){ let t=0,l=0; for (var k in IMG){ t++; var im=IMG[k]; if (im.complete&&im.naturalWidth>0) l++; } return [l,t]; }
 // Полифилл ellipse (старые WebView/браузеры): через масштаб и arc
 if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.ellipse){
   CanvasRenderingContext2D.prototype.ellipse = function(x,y,rx,ry,rot,a0,a1,ccw){
@@ -818,6 +825,26 @@ function drawWorld(scx, th){
     g.addColorStop(0,'#1a2340');g.addColorStop(.5,'#141a2e');g.addColorStop(1,'#0d1224');
     ctx.fillStyle=g;ctx.fillRect(0,0,VW,VH);
   }
+  // ВЕКТОРНАЯ ГРА: горы-синусоиды и облака — мир бежит даже без картинок
+  if (!imgOK('mid')){
+    const hill=(spd, base, amp, col)=>{
+      ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(0,VH);
+      for (let x=0;x<=VW;x+=32)
+        ctx.lineTo(x, base + Math.sin((x+scx*spd)*0.004)*amp + Math.sin((x+scx*spd)*0.011)*amp*.4);
+      ctx.lineTo(VW,VH); ctx.closePath(); ctx.fill();
+    };
+    hill(.15, 420, 70, 'rgba(52,68,120,0.9)');
+    hill(.35, 560, 90, 'rgba(40,52,100,0.95)');
+  }
+  if (!imgOK('clouds')){
+    ctx.globalAlpha=.12; ctx.fillStyle='#9fd0ff';
+    for (let i=0;i<3;i++){
+      const cy2=260+i*130, cw=VW*.7;
+      let ox=(scx*(.3+i*.15)+i*400)%cw; if(ox>0)ox-=cw;
+      for (let x=ox;x<VW;x+=cw) ctx.fillRect(x,cy2,cw*.5,18);
+    }
+    ctx.globalAlpha=1;
+  }
   // ДАЛЬНЯЯ ПОЛОСА (параллакс 0.18, темнее/мельче — глубина)
   const mid=IMG['far_'+th] || IMG.mid;
   if (imgOK('mid')){
@@ -870,7 +897,12 @@ function drawWorld(scx, th){
     }
   } else {
     ctx.fillStyle='#1c2440';
-    ctx.fillRect(0,GROUND_TOP,worldW,GROUND_BOT-GROUND_TOP);
+    ctx.fillRect(0,GROUND_TOP,VW,GROUND_BOT-GROUND_TOP);
+    ctx.fillStyle='rgba(120,150,255,0.15)';
+    let toff = scx % 240; if (toff>0) toff-=240;
+    for (let x=toff;x<VW;x+=240) ctx.fillRect(x+8, GROUND_TOP+14, 224, GROUND_BOT-GROUND_TOP-28);
+    ctx.strokeStyle='rgba(120,150,255,0.25)'; ctx.lineWidth=2;
+    ctx.strokeRect(0,GROUND_TOP,VW,GROUND_BOT-GROUND_TOP);
   }
   // БЕГУЩИЕ МЕТКИ ПОЛА — пролетающие штрихи создают ощущение скорости
   ctx.save();
@@ -975,9 +1007,28 @@ function drawUnit(u){
     try{ctx.filter='none';}catch(e){}
     ctx.restore();
   } else {
+    // ВЕКТОРНЫЙ ПЕРСОНАЖ: тело+голова+анимированные ноги — виден всегда
     const c=EL[u.el].c;
-    circle(u.x+leanX,u.y+bob,u.r*scale,u.team===1?shade(c,-45):c,u.team===0?'#e8e8f0':'#3a2a2a');
-    circle(u.x+leanX,u.y+bob-u.r*.55*scale,u.r*.42*scale,shade(c,70));
+    const bx=u.x+leanX, by=u.y+bob;
+    const step=(u.moving || u.team===0)? Math.sin(Date.now()/95+u.x)*12 : 0;
+    ctx.strokeStyle='#dfe3f0'; ctx.lineWidth=6; ctx.lineCap='round';
+    ctx.beginPath();
+    ctx.moveTo(bx-9,by+10); ctx.lineTo(bx-9+step,by+u.r*.95);
+    ctx.moveTo(bx+9,by+10); ctx.lineTo(bx+9-step,by+u.r*.95);
+    ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(bx,by-4,u.r*.72*scale,u.r*.88*scale,0,0,7);
+    ctx.fillStyle=u.team===1?shade(c,-45):c;
+    ctx.fill(); ctx.lineWidth=3; ctx.strokeStyle=shade(c,-90); ctx.stroke();
+    circle(bx,by-u.r*.85*scale,u.r*.5*scale,shade(c,60),'#dfe3f0');
+    ctx.fillStyle='#1a1a2a';
+    ctx.fillRect(bx+u.facing*7*scale-3,by-u.r*.9*scale,6,7);
+    if (u.boss){
+      ctx.strokeStyle='#f5c542'; ctx.lineWidth=5;
+      ctx.beginPath();
+      ctx.moveTo(bx-u.r*.4,by-u.r*1.2); ctx.lineTo(bx-u.r*.55,by-u.r*1.55);
+      ctx.moveTo(bx+u.r*.4,by-u.r*1.2); ctx.lineTo(bx+u.r*.55,by-u.r*1.55);
+      ctx.stroke();
+    }
   }
   ctx.globalAlpha=1;
 
@@ -1082,7 +1133,8 @@ function drawBattleHUD(){
   }
   // отладочная строка: всегда видна, покажет состояние игры
   ctx.font='500 20px Segoe UI'; ctx.textAlign='left'; ctx.fillStyle='#7dff9a';
-  ctx.fillText(GAME_VERSION+' | героев:'+team.length+' | врагов:'+enemies.filter(function(e){return e.alive;}).length+' | мир:'+Math.round(camX), 40, GROUND_BOT+50);
+  const ac2 = artCount();
+  ctx.fillText(GAME_VERSION+' | героев:'+team.length+' | врагов:'+enemies.filter(function(e){return e.alive;}).length+' | мир:'+Math.round(camX)+' | картинок:'+ac2[0]+'/'+ac2[1]+(VEC?' ВЕКТОР':''), 40, GROUND_BOT+50);
 }
 function drawBanner(){
   if (bannerT<=0) return;
@@ -1226,12 +1278,17 @@ function drawMenu(){
   }
   ctx.font='500 22px Segoe UI'; ctx.fillStyle='#667'; ctx.textAlign='center';
   ctx.fillText('Полная версия — Unity: 9 миров, 14 героев, арена, гача, чат • веб-демо '+GAME_VERSION,VW/2,VH-14);
-  const artTotal = Object.keys(IMG).length;
-  const artLoaded = Object.keys(IMG).filter(k=>IMG[k].complete).length;
-  if (artLoaded < artTotal){
-    ctx.font='500 24px Segoe UI'; ctx.fillStyle='#ffd76a';
-    ctx.fillText('ЗАГРУЗКА АРТА '+artLoaded+' / '+artTotal+' …', VW/2, VH-52);
+  const ac = artCount();
+  ctx.font='600 24px Segoe UI'; ctx.textAlign='center';
+  if (VEC){
+    ctx.fillStyle='#7dff9a';
+    ctx.fillText('ВЕКТОРНЫЙ РЕЖИМ — картинки не загрузились, играем графикой кода', VW/2, VH-52);
+  } else if (ac[0] < ac[1]){
+    ctx.fillStyle='#ffd76a';
+    ctx.fillText('ЗАГРУЗКА АРТА '+ac[0]+' / '+ac[1]+' …', VW/2, VH-52);
   }
+  ctx.font='500 20px Segoe UI'; ctx.fillStyle='#7dff9a'; ctx.textAlign='left';
+  ctx.fillText(GAME_VERSION+' | картинок: '+ac[0]+'/'+ac[1]+' | режим: '+(VEC?'ВЕКТОР':'СПРАЙТЫ'), 24, 34);
 }
 function drawBattle(){
   ctx.save();
