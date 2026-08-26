@@ -22,8 +22,11 @@ if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D
     this.arcTo(x,y+h,x,y,r); this.arcTo(x,y,x+w,y,r); this.closePath(); return this;
   };
 }
+window.__DM_ERRS = [];
 function dmReportError(msg, stack){
   try{
+    window.__DM_ERRS.push((''+msg).slice(0,200));
+    if (window.__DM_ERRS.length>8) window.__DM_ERRS.shift();
     window.__DM_ERR_COUNT = (window.__DM_ERR_COUNT||0)+1;
     if (window.__DM_ERR_COUNT > 5) return; // не спамим
     var d = document.getElementById('dm_err');
@@ -54,7 +57,7 @@ window.addEventListener('error', function(e){
   dmReportError((e.message||e.error)+' @строка '+(e.lineno||'?'),
     e.error && e.error.stack ? e.error.stack : (e.filename||'')+' #'+(e.lineno||'?'));
 });
-const GAME_VERSION = 'v13';
+const GAME_VERSION = 'v14';
 var dmRaf = 0, dmLastDraw = 0, dmDebug = true, dmNoRaf = false;
 let VEC = false;
 setTimeout(function(){
@@ -1432,6 +1435,28 @@ function onDown(e){
   }
 }
 var dmStartT = Date.now();
+(function(){
+  function ready(){
+    var b = document.createElement('button');
+    b.textContent = 'ОТЧЁТ';
+    b.style.cssText = 'position:fixed;top:8px;right:8px;z-index:10000;padding:10px 16px;font:700 16px sans-serif;background:#4d8cf2;color:#fff;border:0;border-radius:10px;box-shadow:0 2px 8px #0008;';
+    b.onclick = function(){
+      var ac = artCount();
+      var rep = ['ОТЧЁТ МАСТЕРА СНОВ','сборка: '+GAME_VERSION,'браузер: '+navigator.userAgent,
+        'экран: '+innerWidth+'x'+innerHeight+' (dpr '+(window.devicePixelRatio||'?')+')',
+        'кадров: '+dmRaf,'сцена: '+scene+' | camX: '+Math.round(camX),
+        'картинок: '+ac[0]+'/'+ac[1]+' | режим: '+(VEC?'ВЕКТОР':'СПРАЙТЫ'),
+        'героев: '+(team?team.length:'-'),
+        'ошибки: '+(window.__DM_ERRS&&window.__DM_ERRS.length?window.__DM_ERRS.join(' | '):'нет')].join('\n');
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(rep);
+      b.textContent='СКОПИРОВАНО - ОТПРАВЬТЕ РАЗРАБОТЧИКУ';
+      setTimeout(function(){ b.textContent='ОТЧЁТ'; }, 2500);
+    };
+    (document.body || document.documentElement).appendChild(b);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready);
+  else ready();
+})();
 cv.addEventListener('pointerdown', function(e){
   const pp = pt(e);
   if (pp.x < 90 && pp.y < 260) { dmDebug = !dmDebug; return; }
@@ -1461,6 +1486,10 @@ function loop(now){
 }
 function loopInner(now){
   dmRaf++;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  try { ctx.filter = 'none'; } catch(e){}
   let dtRaw=Math.min(.05,(now-last)/1000);
   last=now;
   updateAmbient(dtRaw);
@@ -1475,7 +1504,7 @@ function loopInner(now){
   ctx.save();
   ctx.font='800 26px Segoe UI'; ctx.textAlign='center';
   ctx.lineWidth=5; ctx.strokeStyle='rgba(0,0,0,0.75)';
-  const wm = 'СБОРКА '+GAME_VERSION+' • '+new Date().toLocaleTimeString();
+  const wm = 'СБОРКА '+GAME_VERSION+' • '+new Date().toLocaleTimeString()+' • кадр:'+dmRaf+' мир:'+Math.round(scene==='battle'?camX:0)+' '+(VEC?'ВЕКТОР':'');
   ctx.strokeText(wm, VW/2, 30);
   ctx.fillStyle='#ffd76a'; ctx.fillText(wm, VW/2, 30);
   // === ПАНЕЛЬ САМОДИАГНОСТИКИ (первые 8 секунд или тап по левому верхнему углу) ===

@@ -12,7 +12,7 @@ src = re.sub(r"const ART_B64 = \{.*?\}; //__ART__", "const ART_B64 = {}; //__ART
 assert "__ART__ (лайт" in src
 
 # 2) версия + мгновенный векторный режим
-src = src.replace("const GAME_VERSION = 'v12';", "const GAME_VERSION = 'v13-LITE';")
+src = re.sub(r"const GAME_VERSION = 'v\\d+[^']*';", "const GAME_VERSION = 'v14-LITE';", src, count=1)
 src = src.replace("let VEC = false;", "let VEC = true; // лайт: всегда вектор")
 
 # 3) подвал меню
