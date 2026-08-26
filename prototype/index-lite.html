@@ -57,7 +57,7 @@ window.addEventListener('error', function(e){
   dmReportError((e.message||e.error)+' @строка '+(e.lineno||'?'),
     e.error && e.error.stack ? e.error.stack : (e.filename||'')+' #'+(e.lineno||'?'));
 });
-const GAME_VERSION = 'v15';
+const GAME_VERSION = 'v16';
 // НЕБЬЮЩИЙСЯ ЭЛЛИПС: Chrome бросает IndexSizeError при отрицательном радиусе.
 // Причина бага: в JS (-420*31)%34 = отрицательное число. Лечим глобально.
 (function(){
@@ -122,6 +122,22 @@ function pt(e){ const r = cv.getBoundingClientRect(); return {x:(e.clientX-r.lef
 const ART_B64 = {}; //__ART__ (лайт: без арта)
 const IMG = {};
 for (const k in ART_B64){ const im = new Image(); im.src = ART_B64[k]; IMG[k] = im; }
+const LAYER_CACHE = {};
+function layerC(key, w, h){
+  const im = IMG[key];
+  if (!im || !im.complete || !im.naturalWidth) return null;
+  const ck = key+'|'+Math.round(w)+'x'+Math.round(h);
+  if (LAYER_CACHE[ck]) return LAYER_CACHE[ck];
+  try {
+    const c = document.createElement('canvas');
+    c.width = Math.round(w); c.height = Math.round(h);
+    const cc = c.getContext && c.getContext('2d');
+    if (!cc) return im;
+    cc.drawImage(im, 0, 0, c.width, c.height);
+    LAYER_CACHE[ck] = c;
+    return c;
+  } catch(e){ return im; }
+}
 
 // ---------- Звук: движок (шины, панорама по миру, музыка-шедулер) ----------
 let AC = null, MASTER=null, SFX_BUS=null, MUS_BUS=null, NOISE_BUF=null;
@@ -715,7 +731,7 @@ function tick(dt){
       if (t){
         const dd=dist(u,t);
         if (dd>u.range){
-          if (!u.wp||autoMode) moveUnit(u,t.x-u.facing*(u.range*.8),t.y,dt,.65);
+          u.facing=Math.sign(t.x-u.x)||u.facing; // стоим в строю — враги и мир едут на нас
         } else {
           u.moving=false; u.facing=Math.sign(t.x-u.x)||u.facing;
           u.atkT-=dt;
@@ -876,7 +892,8 @@ function drawWorld(scx, th){
   const panorama = IMG['bg_'+th];
   if (panorama && panorama.complete && panorama.naturalWidth>0){
     const mw=VW*1.25, mx=-((scx*.4)%(mw*.85));
-    for (let x=mx-mw; x<VW+mw; x+=mw*.85) ctx.drawImage(panorama,x,90,mw,VH*.62);
+    const panC = layerC('bg_'+th, mw, VH*.62) || panorama;
+    for (let x=mx-mw; x<VW+mw; x+=mw*.85) ctx.drawImage(panC,x,90);
   } else if (imgOK('mid')){
     const mw=VW*1.4, mx=-((scx*.4)%(mw*.8));
     for (let x=mx-mw; x<VW+mw; x+=mw*.8) ctx.drawImage(mid,x,60,mw,VH*.55);
@@ -907,9 +924,10 @@ function drawWorld(scx, th){
       const flip = ((x/ftw)%2+2)%2 >= 1;
       if (flip){
         ctx.save(); ctx.translate(x+ftw,0); ctx.scale(-1,1);
-        ctx.drawImage(front,0,GROUND_TOP+40,ftw,fh);
+        const gcm = layerC('ground_'+th, ftw, fh) || front;
+        ctx.drawImage(gcm,0,GROUND_TOP+40);
         ctx.restore();
-      } else ctx.drawImage(front,x,GROUND_TOP+40,ftw,fh);
+      } else { const gc = layerC('ground_'+th, ftw, fh) || front; ctx.drawImage(gc,x,GROUND_TOP+40); }
       idx++;
     }
   } else {
@@ -953,10 +971,11 @@ function drawNear(scx, th){
   const im = IMG['near_'+th];
   if (!(im && im.complete && im.naturalWidth > 0)) return;
   const nw = VW*.95, nh = nw*im.naturalHeight/im.naturalWidth;
+  const nc = layerC('near_'+th, nw, nh) || im;
   let off = (scx*1.35) % nw;
   if (off > 0) off -= nw;
-  ctx.globalAlpha = .88;
-  for (let x = off; x < VW; x += nw) ctx.drawImage(im, x, VH-nh-70, nw, nh);
+  ctx.globalAlpha = .8;
+  for (let x = off; x < VW; x += nw) ctx.drawImage(nc, x, VH-nh+8);
   ctx.globalAlpha = 1;
 }
 function drawUnit(u){
@@ -1315,6 +1334,10 @@ function drawBattle(){
   ctx.save();
   ctx.translate(-camX,0);
   drawWorld();
+  ctx.restore();
+  drawNear(); // кулиса ЗА юнитами, не поверх героев
+  ctx.save();
+  ctx.translate(-camX,0);
   for (const e of enemies) drawUnit(e);
   for (const u of team) drawUnit(u);
   drawFx();
@@ -1357,7 +1380,6 @@ function drawBattle(){
     ctx.fillRect(sl.x, sl.y, sl.len, 2.5);
   }
   ctx.globalAlpha = 1;
-  drawNear();
   drawRays();
   drawPetals();
   // туман-слои (светящиеся пятна поверх мира)
