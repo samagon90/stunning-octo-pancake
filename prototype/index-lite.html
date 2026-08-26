@@ -57,7 +57,20 @@ window.addEventListener('error', function(e){
   dmReportError((e.message||e.error)+' @строка '+(e.lineno||'?'),
     e.error && e.error.stack ? e.error.stack : (e.filename||'')+' #'+(e.lineno||'?'));
 });
-const GAME_VERSION = 'v14';
+const GAME_VERSION = 'v15';
+// НЕБЬЮЩИЙСЯ ЭЛЛИПС: Chrome бросает IndexSizeError при отрицательном радиусе.
+// Причина бага: в JS (-420*31)%34 = отрицательное число. Лечим глобально.
+(function(){
+  var proto = (typeof CanvasRenderingContext2D !== 'undefined') ? CanvasRenderingContext2D.prototype : null;
+  if (!proto || !proto.ellipse) return;
+  var _ell = proto.ellipse;
+  proto.ellipse = function(x,y,rx,ry,rot,a0,a1,ccw){
+    rx = Math.abs(rx); ry = Math.abs(ry);
+    if (!(rx > 0.1)) rx = 0.1;
+    if (!(ry > 0.1)) ry = 0.1;
+    return _ell.call(this, x, y, rx, ry, rot||0, a0||0, (a1===undefined?Math.PI*2:a1), ccw||false);
+  };
+})();
 var dmRaf = 0, dmLastDraw = 0, dmDebug = true, dmNoRaf = false;
 let VEC = true; // лайт: всегда вектор
 setTimeout(function(){
@@ -914,8 +927,8 @@ function drawWorld(scx, th){
   ctx.fillStyle='#9fd0ff';
   const mk0 = Math.floor((scx-420)/210)*210;
   for (let mx0=mk0; mx0<scx+VW+420; mx0+=210){
-    const my=GROUND_TOP+90+((mx0*7919)% (GROUND_BOT-GROUND_TOP-180));
-    const w2=26+((mx0*31)%34);
+    const my=GROUND_TOP+90+Math.abs((mx0*7919)% (GROUND_BOT-GROUND_TOP-180));
+    const w2=26+Math.abs((mx0*31)%34);
     ctx.beginPath(); ctx.ellipse(mx0,my,w2,5,0,0,7); ctx.fill();
   }
   ctx.restore();
