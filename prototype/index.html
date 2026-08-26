@@ -57,7 +57,7 @@ window.addEventListener('error', function(e){
   dmReportError((e.message||e.error)+' @строка '+(e.lineno||'?'),
     e.error && e.error.stack ? e.error.stack : (e.filename||'')+' #'+(e.lineno||'?'));
 });
-const GAME_VERSION = 'v16';
+const GAME_VERSION = 'v17';
 // НЕБЬЮЩИЙСЯ ЭЛЛИПС: Chrome бросает IndexSizeError при отрицательном радиусе.
 // Причина бага: в JS (-420*31)%34 = отрицательное число. Лечим глобально.
 (function(){
@@ -914,6 +914,8 @@ function drawWorld(scx, th){
     }
     ctx.globalAlpha=1;
   }
+  // ДЕКОРАЦИИ (камни/кристаллы) — ЗА дорогой, рисуются до платформы
+  drawNear(scx, th);
   // ПОЛ ТЕМЫ (параллакс 1.0, БЕСКОНЕЧНЫЙ тайл с чередованием зеркала)
   const front=IMG['ground_'+th] || IMG.front;
   if (imgOK('front')){
@@ -970,12 +972,13 @@ function drawNear(scx, th){
   if (!th) th = LEVELS[levelIdx].theme || 'dream';
   const im = IMG['near_'+th];
   if (!(im && im.complete && im.naturalWidth > 0)) return;
-  const nw = VW*.95, nh = nw*im.naturalHeight/im.naturalWidth;
+  const nw = VW*.8, nh = nw*im.naturalHeight/im.naturalWidth;
   const nc = layerC('near_'+th, nw, nh) || im;
   let off = (scx*1.35) % nw;
   if (off > 0) off -= nw;
-  ctx.globalAlpha = .8;
-  for (let x = off; x < VW; x += nw) ctx.drawImage(nc, x, VH-nh+8);
+  ctx.globalAlpha = .95;
+  const ny = GROUND_TOP + 54 - nh;
+  for (let x = off; x < VW; x += nw) ctx.drawImage(nc, x, ny);
   ctx.globalAlpha = 1;
 }
 function drawUnit(u){
@@ -1215,7 +1218,6 @@ function drawMenu(){
   const mTh = MTHEMES[Math.floor(Date.now()/14000)%5];
   const mScroll = Date.now()*.16;
   drawWorld(mScroll, mTh);
-  drawNear(mScroll, mTh);
   ctx.fillStyle='rgba(5,8,16,.38)'; ctx.fillRect(0,0,VW,VH);
   drawAmbient();
   // линии скорости и в меню — дорога летит
@@ -1335,7 +1337,6 @@ function drawBattle(){
   ctx.translate(-camX,0);
   drawWorld();
   ctx.restore();
-  drawNear(); // кулиса ЗА юнитами, не поверх героев
   ctx.save();
   ctx.translate(-camX,0);
   for (const e of enemies) drawUnit(e);
