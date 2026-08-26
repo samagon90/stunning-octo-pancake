@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c7ebb6fde455ed1521c86d74d8a9280f, type: 3}
+  m_Name: Древний Кошмар
+  m_EditorClassIdentifier: 
+  enemyId: "midboss_nightmare_2"
+  displayName: "\u0414\u0440\u0435\u0432\u043D\u0438\u0439 \u041A\u043E\u0448\u043C\u0430\u0440"
+  element: 1
+  isBoss: 1
+  stats:
+    maxHp: 5200
+    attack: 170
+    defense: 90
+    attackSpeed: 0.9
+    moveSpeed: 3
+    critChance: 0.05
+    critDamage: 1.5
+    hpRegen: 0
+  abilitiesUnlocked: 2
+  goldReward: 260
+  shardReward: 14
+  runeReward: 3
+  viewPrefab: {fileID: 0}

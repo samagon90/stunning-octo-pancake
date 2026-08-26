@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 273dc8f77e57a602b859dbea3e6f5156, type: 3}
+  m_Name: Порыв
+  m_EditorClassIdentifier: 
+  abilityId: "hades_gust"
+  displayName: "\u041F\u043E\u0440\u044B\u0432"
+  description: "\u041F\u043E\u0440\u044B\u0432"
+  targetType: 1
+  powerCoefficient: 1.2
+  cooldownSeconds: 12
+  castRange: 6
+  effectRadius: 4
+  supportValue: 0
+  buffDuration: 0

@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e64232ff83fe88a375e250c7f5c9c111, type: 3}
+  m_Name: Зевс
+  m_EditorClassIdentifier: 
+  heroId: "zeus"
+  heroName: "\u0417\u0435\u0432\u0441"
+  category: 0
+  element: 1
+  attackRange: 1
+  role: 1
+  baseStats:
+    maxHp: 1050
+    attack: 155
+    defense: 65
+    attackSpeed: 1
+    moveSpeed: 3.5
+    critChance: 0.12
+    critDamage: 1.5
+    hpRegen: 0
+  abilities:
+    - {fileID: 11400000, guid: 2600e6f874e9e1b9998dbd533bc34456, type: 3}
+    - {fileID: 11400000, guid: cd84e93d2df93b93aba3e34c449ced55, type: 3}
+    - {fileID: 11400000, guid: 22fd368ef2fd10f6d788cc288fd29c95, type: 3}
+    - {fileID: 11400000, guid: f1e9b88fd192e75085f290d43f2f4080, type: 3}
+  maxStars: 7
+  portrait: {fileID: 0}
+  lore: "\u0413\u0440\u043E\u043C\u043E\u0432\u0435\u0440\u0436\u0435\u0446, \u0447\u0435\u0439 \u0441\u043E\u043D \u0442\u044B\u0441\u044F\u0447\u0443 \u043B\u0435\u0442 \u043E\u0445\u0440\u0430\u043D\u044F\u043B\u0438 \u043E\u0440\u043B\u044B. \u041F\u0440\u043E\u0441\u043D\u0443\u043B\u0441\u044F \u2014 \u0438 \u0432\u0437\u044F\u043B\u0441\u044F \u0437\u0430 \u043C\u043E\u043B\u043D\u0438\u0438."

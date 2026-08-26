@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8ee89c7c21611f78f7747f5fd7001eb7, type: 3}
+  m_Name: 1-7 Речные голоса
+  m_EditorClassIdentifier: 
+  levelId: "w1_l07"
+  displayName: "\u0420\u0435\u0447\u043D\u044B\u0435 \u0433\u043E\u043B\u043E\u0441\u0430"
+  introText: "\u041A\u0435\u043B\u043F\u0438 \u0437\u043E\u0432\u0443\u0442 \u0432 \u0433\u043B\u0443\u0431\u0438\u043D\u0443. \u041D\u0435 \u043E\u0442\u0432\u0435\u0447\u0430\u0439."
+  waves:
+    - enemy: {fileID: 11400000, guid: adaba48eafa47a46271a097ca7e34c1b, type: 3}
+      count: 4
+      spawnInterval: 0.7
+    - enemy: {fileID: 11400000, guid: adaba48eafa47a46271a097ca7e34c1b, type: 3}
+      count: 3
+      spawnInterval: 0.7
+  goldReward: 390
+  crystalReward: 33
+  shardReward: 20
+  runeReward: 6
+  scriptedPlayerLoss: 0

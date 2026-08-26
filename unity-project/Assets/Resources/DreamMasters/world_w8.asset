@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43d0ba85f480e21287a394c77917a4f7, type: 3}
+  m_Name: Туманный сон
+  m_EditorClassIdentifier: 
+  worldId: "w8"
+  worldName: "\u0422\u0443\u043C\u0430\u043D\u043D\u044B\u0439 \u0441\u043E\u043D"
+  themeElement: 3
+  description: "\u0422\u0443\u043C\u0430\u043D \u043F\u044C\u0451\u0442 \u0438\u043C\u0435\u043D\u0430. \u0422\u0435\u0442\u0440\u0430 \u0440\u0430\u0437\u0434\u0430\u0451\u0442 \u0438\u0445 \u043E\u0431\u0440\u0430\u0442\u043D\u043E."
+  levels:
+    - {fileID: 11400000, guid: 743190cfa633e781f7e5bb31f8db938d, type: 3}
+    - {fileID: 11400000, guid: bc9f349cfec00bae02e54b96f259d666, type: 3}
+    - {fileID: 11400000, guid: 4dfa8d1467669b331e0a6ac4d88ed184, type: 3}
+    - {fileID: 11400000, guid: 456219818a85d5d5b5f26fc00ba1b2b4, type: 3}
+    - {fileID: 11400000, guid: b9a6462a5bce06d3d92d54c26a4fa84b, type: 3}
+    - {fileID: 11400000, guid: 5ff417037907301e67e5c6c68839201f, type: 3}
+    - {fileID: 11400000, guid: 382cc93f2d0825f25cb3cf24ed3bc376, type: 3}
+    - {fileID: 11400000, guid: c5aab4b04adbad8af691f51948bece8f, type: 3}
+    - {fileID: 11400000, guid: 25ab5bbf7db958f638b681dda28171ac, type: 3}
+    - {fileID: 11400000, guid: a34fe1683380864372b5b1bab49ea4e5, type: 3}
+    - {fileID: 11400000, guid: 559d9c462b72a0594f94125587db74bc, type: 3}
+    - {fileID: 11400000, guid: de4448511040b7dcca2f262399c327f0, type: 3}
+    - {fileID: 11400000, guid: 64844630bc82e1cbb5fd33962e24feb6, type: 3}
+    - {fileID: 11400000, guid: 111832884ea3f5dc9dd2f017323fb621, type: 3}
+    - {fileID: 11400000, guid: 2ef9169ea1a5f9fd1f1c20f27f067af4, type: 3}
+  bossHero: {fileID: 11400000, guid: a5102a5c8016a264a13911b46eca2ca9, type: 3}

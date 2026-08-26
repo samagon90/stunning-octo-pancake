@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e64232ff83fe88a375e250c7f5c9c111, type: 3}
+  m_Name: Фрэнк
+  m_EditorClassIdentifier: 
+  heroId: "frank"
+  heroName: "\u0424\u0440\u044D\u043D\u043A"
+  category: 3
+  element: 2
+  attackRange: 0
+  role: 0
+  baseStats:
+    maxHp: 1600
+    attack: 90
+    defense: 110
+    attackSpeed: 0.8
+    moveSpeed: 3.2
+    critChance: 0.05
+    critDamage: 1.5
+    hpRegen: 0
+  abilities:
+    - {fileID: 11400000, guid: e7578097e71a109c987ecec3f2e58af2, type: 3}
+    - {fileID: 11400000, guid: c52fc8a223a1291bce7fd7c5d0e49b09, type: 3}
+    - {fileID: 11400000, guid: c4294888a899121daadfb07140ff2895, type: 3}
+    - {fileID: 11400000, guid: d2665404ed2fd463f00f19fc18665d03, type: 3}
+  maxStars: 5
+  portrait: {fileID: 0}
+  lore: "\u041F\u043E\u0440\u043E\u0436\u0434\u0435\u043D\u0438\u0435 \u0437\u0430\u0431\u044B\u0442\u043E\u0439 \u043B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u0438: \u0441\u0434\u0435\u0440\u0436\u0430\u043D, \u043D\u0430\u0434\u0451\u0436\u0435\u043D, \u0434\u0435\u0440\u0436\u0438\u0442 \u0441\u0442\u0440\u043E\u0439 \u043A\u0430\u043A \u0441\u043A\u0430\u043B\u0430."

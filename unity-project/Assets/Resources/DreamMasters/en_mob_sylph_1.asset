@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c7ebb6fde455ed1521c86d74d8a9280f, type: 3}
+  m_Name: Сильфида I
+  m_EditorClassIdentifier: 
+  enemyId: "mob_sylph_1"
+  displayName: "\u0421\u0438\u043B\u044C\u0444\u0438\u0434\u0430"
+  element: 1
+  isBoss: 0
+  stats:
+    maxHp: 340
+    attack: 62
+    defense: 21
+    attackSpeed: 0.9
+    moveSpeed: 3
+    critChance: 0.05
+    critDamage: 1.5
+    hpRegen: 0
+  abilitiesUnlocked: 0
+  goldReward: 16
+  shardReward: 1
+  runeReward: 0
+  viewPrefab: {fileID: 0}
